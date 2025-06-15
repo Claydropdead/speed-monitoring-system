@@ -41,14 +41,20 @@ export default function SpeedTestModal({ isOpen, onClose, officeId, selectedISP,
       setIsTestRunning(false);
     }
   }, [isOpen]);
-
   // Auto-start test when modal opens and states are reset
   useEffect(() => {
     if (isOpen && !isTestRunning && !hasCompletedTest && !error) {
       console.log('🚀 SpeedTestModal: Auto-starting test on modal open');
-      setIsTestRunning(true);
+      // Use a small delay to ensure state is settled
+      const startTimeout = setTimeout(() => {
+        setIsTestRunning(true);
+      }, 100);
+      
+      return () => clearTimeout(startTimeout);
     }
-  }, [isOpen, isTestRunning, hasCompletedTest, error]);const handleComplete = (result: SpeedTestResult) => {
+  }, [isOpen]); // Remove other dependencies to prevent re-triggering
+
+  const handleComplete = (result: SpeedTestResult) => {
     console.log('🎬 SpeedTestModal: Test completed, showing results');
     setIsTestRunning(false); // Set to false when test completes
     setHasCompletedTest(true);
@@ -173,7 +179,7 @@ export default function SpeedTestModal({ isOpen, onClose, officeId, selectedISP,
                       </div>
                     </div>
                   </div>) : (                  <div>                    <Speedometer
-                      key={`speedometer-${isOpen}-${selectedISP || 'default'}`}
+                      key={`speedometer-${selectedISP || 'default'}`}
                       isRunning={isTestRunning}
                       officeId={officeId}
                       selectedISP={selectedISP}

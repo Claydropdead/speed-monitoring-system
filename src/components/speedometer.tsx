@@ -148,9 +148,16 @@ Please select the correct ISP that matches your actual connection.`;
       handleErrorRef.current?.(errorMessage, { type: 'validation_error' });
     }
   };
-
   const startSpeedTest = () => {
     console.log('🚀 Speedometer: Starting real-time speedtest');
+    
+    // Prevent multiple EventSource connections
+    if (eventSourceRef) {
+      console.log('⚠️ Speedometer: EventSource already exists, closing previous connection');
+      eventSourceRef.close();
+      setEventSourceRef(null);
+    }
+    
     onTestStartRef.current?.();
 
     const eventSource = new EventSource(`/api/speedtest/live?officeId=${officeId}${selectedISP ? `&selectedISP=${encodeURIComponent(selectedISP)}` : ''}`);

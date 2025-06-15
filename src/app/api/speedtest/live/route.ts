@@ -119,15 +119,17 @@ export async function GET(request: NextRequest) {
               speedtest.kill('SIGKILL');
             }
           }, 5000);
-        }
-      }, 300000); // 5 minutes
+        }      }, 300000); // 5 minutes
       
       let fullOutput = '';
       let currentDownload = 0;
       let currentUpload = 0;
       let currentPing = 0;
       let hasError = false;
-      let progressCount = 0;speedtest.stdout.on('data', (data) => {
+      let progressCount = 0;
+      let hasSavedToDatabase = false; // Flag to prevent duplicate database saves
+
+      speedtest.stdout.on('data', (data) => {
         if (isControllerClosed) return;
         
         const chunk = data.toString();
@@ -285,10 +287,18 @@ export async function GET(request: NextRequest) {
                   resultUrl: result.result?.url, // Add Ookla result URL
                   complete: true,
                   rawData: JSON.stringify(result)
-                })}\n\n`);                  isTestComplete = true;
-                  clearTimeout(testTimeout); // Clear timeout since test completed
-                  
-                  // Save to database immediately and await it
+                })}\n\n`);                isTestComplete = true;
+                clearTimeout(testTimeout); // Clear timeout since test completed
+                
+                // Prevent duplicate database saves
+                if (hasSavedToDatabase) {
+                  console.log(`⚠️ [${requestId}] Database save already completed, skipping duplicate save`);
+                  safeClose();
+                  return;
+                }
+                hasSavedToDatabase = true;
+                
+                // Save to database immediately and await it
                 console.log(`💾 [${requestId}] Initiating database save`);
                 (async () => {
                   try {
