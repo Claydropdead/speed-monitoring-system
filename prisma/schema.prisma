@@ -25,21 +25,22 @@ model User {
 }
 
 model Office {
-  id          String      @id @default(cuid())
-  unitOffice  String      // Main unit office name
-  subUnitOffice String?   // Sub-unit office name (null for main unit offices)
-  location    String
-  isp         String      // Primary/default ISP (legacy field)
-  isps        String?     // JSON array of all ISPs available at this office
-  description String?
-  parentId    String?     // Reference to parent unit office
-  parent      Office?     @relation("OfficeHierarchy", fields: [parentId], references: [id])
-  subUnits    Office[]    @relation("OfficeHierarchy")
-  users       User[]
-  speedTests  SpeedTest[]
-  schedules   TestSchedule[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id            String      @id @default(cuid())
+  unitOffice    String      // Main unit office name
+  subUnitOffice String?     // Sub-unit office name (null for main unit offices)
+  location      String
+  section       String?     // Section name
+  isp           String      // Primary/default ISP (legacy field)
+  isps          String?     // JSON array of all ISPs available at this office
+  description   String?
+  parentId      String?     // Reference to parent unit office
+  parent        Office?     @relation("OfficeHierarchy", fields: [parentId], references: [id])
+  subUnits      Office[]    @relation("OfficeHierarchy")
+  users         User[]
+  speedTests    SpeedTest[]
+  schedules     TestSchedule[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@unique([unitOffice, subUnitOffice])
   @@map("offices")

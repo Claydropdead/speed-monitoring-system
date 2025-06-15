@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }    const body = await request.json();
-    const { unitOffice, subUnitOffice, location, isp, isps, description, userEmail, userName, userPassword } = body;
+    const { unitOffice, subUnitOffice, location, section, isp, isps, description, userEmail, userName, userPassword } = body;
 
     console.log('POST /api/offices - Create request:', { unitOffice, location, isp, isps });
 
@@ -81,11 +81,11 @@ export async function POST(request: NextRequest) {
     // Hash the password
     const hashedPassword = await bcrypt.hash(userPassword, 12);    // Create office and user in a transaction
     const result = await prisma.$transaction(async (tx) => {      // Create the office exactly as specified - no automatic parent creation
-      const office = await tx.office.create({
-        data: {
+      const office = await tx.office.create({        data: {
           unitOffice,
           subUnitOffice: subUnitOffice || null,
           location,
+          section,
           isp,
           isps: isps || null, // Store the JSON string of all ISPs
           description,
@@ -180,7 +180,7 @@ export async function PUT(request: NextRequest) {
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }    const body = await request.json();
-    const { id, unitOffice, subUnitOffice, location, isp, isps, description } = body;
+    const { id, unitOffice, subUnitOffice, location, section, isp, isps, description } = body;
 
     console.log('PUT /api/offices - Update request:', { id, unitOffice, location, isp, isps });
 
@@ -197,11 +197,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Office not found' }, { status: 404 });
     }    // Update the office
     const updatedOffice = await prisma.office.update({
-      where: { id },
-      data: {
+      where: { id },      data: {
         unitOffice,
         subUnitOffice,
         location,
+        section,
         isp,
         isps: isps || null, // Store the JSON string of all ISPs
         description,

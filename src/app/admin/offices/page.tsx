@@ -23,6 +23,7 @@ interface Office {
   unitOffice: string;
   subUnitOffice?: string;
   location: string;
+  section?: string;
   isp: string; // Primary ISP (for backward compatibility)
   isps?: string; // JSON string of all ISPs
   description?: string;
@@ -39,6 +40,7 @@ interface NewOffice {
   unitOffice: string;
   subUnitOffice?: string;
   location: string;
+  section: string;
   isp: string; // Primary ISP
   isps: string[]; // Array of all ISPs
   description: string;
@@ -51,10 +53,20 @@ interface OfficeUser {
   id: string;
   email: string;
   name: string;
-  role: string;
-  createdAt: string;
+  role: string;  createdAt: string;
   updatedAt: string;
 }
+
+// Fixed office units
+const OFFICE_UNITS = [
+  'RHQ',
+  'Oriental Mindoro PPO',
+  'Occidental Mindoro PPO', 
+  'Marinduque PPO',
+  'Romblon PPO',
+  'Palawan PPO',
+  'RMFB'
+];
 
 export default function AdminOfficesPage() {
   const { data: session, status } = useSession();
@@ -66,6 +78,7 @@ export default function AdminOfficesPage() {
     unitOffice: '',
     subUnitOffice: '',
     location: '',
+    section: '',
     isp: '',
     isps: [''], // Start with one empty ISP
     description: '',
@@ -199,9 +212,7 @@ export default function AdminOfficesPage() {
   const handleAddOffice = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const filledISPs = formData.isps.filter(isp => isp.trim());
-    
-    if (!formData.unitOffice || !formData.location || filledISPs.length === 0 || !formData.userEmail || !formData.userName || !formData.userPassword) {
+    const filledISPs = formData.isps.filter(isp => isp.trim());    if (!formData.unitOffice || !formData.location || !formData.section || filledISPs.length === 0 || !formData.userEmail || !formData.userName || !formData.userPassword) {
       setError('Please fill in all required fields and at least one ISP');
       return;
     }
@@ -224,11 +235,11 @@ export default function AdminOfficesPage() {
       });
 
       if (response.ok) {
-        await fetchOffices();
-        setFormData({ 
+        await fetchOffices();        setFormData({ 
           unitOffice: '', 
           subUnitOffice: '',
-          location: '', 
+          location: '',
+          section: '',
           isp: '', 
           isps: [''],
           description: '',
@@ -312,13 +323,12 @@ export default function AdminOfficesPage() {
       }
     } catch {
       existingISPs = [office.isp];
-    }
-    
-    setEditFormData({
+    }    setEditFormData({
       id: office.id,
       unitOffice: office.unitOffice,
       subUnitOffice: office.subUnitOffice || '',
       location: office.location,
+      section: office.section || '',
       isp: office.isp,
       isps: JSON.stringify(existingISPs),
       description: office.description || ''
@@ -448,19 +458,22 @@ export default function AdminOfficesPage() {
             <div className="bg-white shadow rounded-lg p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Office</h3>
               <form onSubmit={handleAddOffice} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Unit Office *
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={formData.unitOffice}
                       onChange={(e) => setFormData({ ...formData, unitOffice: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter unit office name"
                       required
-                    />
+                    >
+                      <option value="">Select Office Unit</option>
+                      {OFFICE_UNITS.map((unit) => (
+                        <option key={unit} value={unit}>
+                          {unit}                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -485,8 +498,21 @@ export default function AdminOfficesPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="City, State/Province"
                       required
+                    />                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Section *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.section}
+                      onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter section name"
+                      required
                     />
-                  </div>                  <div className="md:col-span-2">
+                  </div>
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       ISP Providers *
                     </label>
@@ -626,11 +652,15 @@ export default function AdminOfficesPage() {
                             - {office.subUnitOffice}
                           </span>
                         )}
-                      </h3>
-                      <div className="flex items-center text-sm text-gray-600 mt-1">
+                      </h3>                      <div className="flex items-center text-sm text-gray-600 mt-1">
                         <MapPin className="h-4 w-4 mr-1" />
                         {office.location}
                       </div>
+                      {office.section && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          � {office.section}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex space-x-1">
@@ -792,18 +822,22 @@ export default function AdminOfficesPage() {
                     </button>
                   </div>
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <div>                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         Unit Office *
                       </label>
-                      <input
-                        type="text"
+                      <select
                         value={editFormData.unitOffice || ''}
                         onChange={(e) => setEditFormData({ ...editFormData, unitOffice: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Enter unit office name"
                         required
-                      />
+                      >
+                        <option value="">Select Office Unit</option>
+                        {OFFICE_UNITS.map((unit) => (
+                          <option key={unit} value={unit}>
+                            {unit}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -828,6 +862,16 @@ export default function AdminOfficesPage() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="City, State/Province"
                         required
+                      />                    </div>                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Section
+                      </label>
+                      <input
+                        type="text"
+                        value={editFormData.section || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, section: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Office section or department"
                       />
                     </div>                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">

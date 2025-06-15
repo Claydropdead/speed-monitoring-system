@@ -25,30 +25,58 @@ async function main() {
       password: adminPassword,
       role: 'ADMIN',
     },
-  });
-  console.log('✅ Created admin user:', admin.email);
+  });  console.log('✅ Created admin user:', admin.email);
+  
   // Create sample offices
   const offices = [
     {
-      unitOffice: 'New York Office',
-      location: 'New York, NY',
-      isp: 'Verizon FiOS',
-      isps: JSON.stringify(['Verizon FiOS', 'Spectrum', 'Optimum']),
-      description: 'Main headquarters office',
+      unitOffice: 'RHQ',
+      location: 'Manila, Philippines',
+      section: 'Administrative Section',
+      isp: 'PLDT',
+      isps: JSON.stringify(['PLDT', 'Globe', 'Converge']),
+      description: 'Regional Headquarters',
     },
     {
-      unitOffice: 'Los Angeles Office',
-      location: 'Los Angeles, CA',
-      isp: 'Spectrum',
-      isps: JSON.stringify(['Spectrum', 'AT&T Fiber']),
-      description: 'West coast operations center',
+      unitOffice: 'Oriental Mindoro PPO',
+      location: 'Calapan City, Oriental Mindoro',
+      isp: 'PLDT',
+      isps: JSON.stringify(['PLDT', 'Globe']),      description: 'Oriental Mindoro Provincial Police Office',
     },
     {
-      unitOffice: 'Chicago Office',
-      location: 'Chicago, IL',
-      isp: 'Comcast Xfinity',
-      isps: JSON.stringify(['Comcast Xfinity', 'AT&T', 'RCN']),
-      description: 'Midwest regional office',
+      unitOffice: 'Occidental Mindoro PPO',
+      location: 'Mamburao, Occidental Mindoro',
+      isp: 'Globe',
+      isps: JSON.stringify(['Globe', 'PLDT']),
+      description: 'Occidental Mindoro Provincial Police Office',
+    },
+    {
+      unitOffice: 'Marinduque PPO',
+      location: 'Boac, Marinduque',
+      isp: 'PLDT',
+      isps: JSON.stringify(['PLDT', 'Globe']),
+      description: 'Marinduque Provincial Police Office',
+    },
+    {
+      unitOffice: 'Romblon PPO',
+      location: 'Romblon, Romblon',
+      isp: 'Globe',
+      isps: JSON.stringify(['Globe', 'PLDT']),
+      description: 'Romblon Provincial Police Office',
+    },
+    {
+      unitOffice: 'Palawan PPO',
+      location: 'Puerto Princesa City, Palawan',
+      isp: 'PLDT',
+      isps: JSON.stringify(['PLDT', 'Globe', 'Converge']),
+      description: 'Palawan Provincial Police Office',
+    },
+    {
+      unitOffice: 'RMFB',
+      location: 'Manila, Philippines',
+      isp: 'PLDT',
+      isps: JSON.stringify(['PLDT', 'Globe', 'Converge']),
+      description: 'Regional Mobile Force Battalion',
     },
   ];
 
@@ -60,26 +88,49 @@ async function main() {
     createdOffices.push(office);
     console.log('✅ Created office:', office.unitOffice);
   }
-
   // Create office users
   const officeUsers = [
     {
-      email: 'newyork@speedtest.com',
-      name: 'New York Manager',
-      password: await bcrypt.hash('ny123', 10),
+      email: 'rhq@speedtest.com',
+      name: 'RHQ Manager',
+      password: await bcrypt.hash('rhq123', 10),
       officeId: createdOffices[0].id,
     },
     {
-      email: 'losangeles@speedtest.com',
-      name: 'Los Angeles Manager',
-      password: await bcrypt.hash('la123', 10),
+      email: 'oriental.mindoro@speedtest.com',
+      name: 'Oriental Mindoro Manager',
+      password: await bcrypt.hash('oriental123', 10),
       officeId: createdOffices[1].id,
     },
     {
-      email: 'chicago@speedtest.com',
-      name: 'Chicago Manager',
-      password: await bcrypt.hash('ch123', 10),
+      email: 'occidental.mindoro@speedtest.com',
+      name: 'Occidental Mindoro Manager',
+      password: await bcrypt.hash('occidental123', 10),
       officeId: createdOffices[2].id,
+    },
+    {
+      email: 'marinduque@speedtest.com',
+      name: 'Marinduque Manager',
+      password: await bcrypt.hash('marinduque123', 10),
+      officeId: createdOffices[3].id,
+    },
+    {
+      email: 'romblon@speedtest.com',
+      name: 'Romblon Manager',
+      password: await bcrypt.hash('romblon123', 10),
+      officeId: createdOffices[4].id,
+    },
+    {
+      email: 'palawan@speedtest.com',
+      name: 'Palawan Manager',
+      password: await bcrypt.hash('palawan123', 10),
+      officeId: createdOffices[5].id,
+    },
+    {
+      email: 'rmfb@speedtest.com',
+      name: 'RMFB Manager',
+      password: await bcrypt.hash('rmfb123', 10),
+      officeId: createdOffices[6].id,
     },
   ];
 
@@ -125,11 +176,11 @@ async function main() {
     for (const office of createdOffices) {
       // Create 1-3 tests per day per office
       const testsPerDay = Math.floor(Math.random() * 3) + 1;
-      
-      for (let j = 0; j < testsPerDay; j++) {
+        for (let j = 0; j < testsPerDay; j++) {
         const testTime = new Date(testDate);
         testTime.setHours(9 + (j * 3), Math.floor(Math.random() * 60), 0, 0);
-          sampleTests.push({
+        
+        sampleTests.push({
           officeId: office.id,
           download: Math.round((Math.random() * 100 + 50) * 100) / 100,
           upload: Math.round((Math.random() * 50 + 25) * 100) / 100,
