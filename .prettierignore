@@ -1,0 +1,33 @@
+# Ignore build outputs
+.next
+out
+build
+dist
+
+# Ignore node modules
+node_modules
+
+# Ignore generated files
+.prisma
+prisma/migrations
+
+# Ignore environment files
+.env*
+
+# Ignore package manager files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Ignore git files
+.git
+.gitignore
+
+# Ignore editor files
+.vscode
+.idea
+
+# Ignore config files that shouldn't be formatted
+*.config.js
+*.config.mjs
+*.config.ts

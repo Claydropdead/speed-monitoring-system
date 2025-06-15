@@ -1,0 +1,91 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole @default(OFFICE)
+  officeId  String?
+  office    Office?  @relation(fields: [officeId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Office {
+  id          String      @id @default(cuid())
+  unitOffice  String      // Main unit office name
+  subUnitOffice String?   // Sub-unit office name (null for main unit offices)
+  location    String
+  isp         String      // Primary/default ISP (legacy field)
+  isps        String?     // JSON array of all ISPs available at this office
+  description String?
+  parentId    String?     // Reference to parent unit office
+  parent      Office?     @relation("OfficeHierarchy", fields: [parentId], references: [id])
+  subUnits    Office[]    @relation("OfficeHierarchy")
+  users       User[]
+  speedTests  SpeedTest[]
+  schedules   TestSchedule[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([unitOffice, subUnitOffice])
+  @@map("offices")
+}
+
+model SpeedTest {
+  id         String    @id @default(cuid())
+  officeId   String
+  office     Office    @relation(fields: [officeId], references: [id])
+  download   Float     // Mbps
+  upload     Float     // Mbps
+  ping       Float     // ms
+  jitter     Float?    // ms
+  packetLoss Float?    // percentage
+  isp        String    // ISP at time of test
+  serverId   String?
+  serverName String?
+  timestamp  DateTime  @default(now())
+  rawData    String?   // JSON string of full Speedtest CLI response
+  
+  @@map("speed_tests")
+}
+
+model TestSchedule {
+  id        String   @id @default(cuid())
+  officeId  String
+  office    Office   @relation(fields: [officeId], references: [id])
+  isp       String?  // Specific ISP for this schedule (nullable for migration)
+  timeSlot  TimeSlot
+  isActive  Boolean  @default(true)
+  lastRun   DateTime?
+  nextRun   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([officeId, isp, timeSlot])
+  @@map("test_schedules")
+}
+
+enum UserRole {
+  ADMIN
+  OFFICE
+}
+
+enum TimeSlot {
+  MORNING   // 9:00 AM
+  NOON      // 12:00 PM
+  AFTERNOON // 3:00 PM
+}
