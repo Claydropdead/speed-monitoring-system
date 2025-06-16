@@ -12,7 +12,10 @@
     "format:check": "prettier --check .",
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "setup": "powershell -ExecutionPolicy Bypass -File setup.ps1",
+    "setup:speedtest": "powershell -Command \"if (Get-Command winget -ErrorAction SilentlyContinue) { winget install Ookla.Speedtest.CLI } else { Write-Host 'Please install Speedtest CLI manually from https://www.speedtest.net/apps/cli' }\"",
+    "check:speedtest": "powershell -Command \"if (Get-Command speedtest -ErrorAction SilentlyContinue) { speedtest --version } else { Write-Host 'Speedtest CLI not found. Run: npm run setup:speedtest' }\""
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",

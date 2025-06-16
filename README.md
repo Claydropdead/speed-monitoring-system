@@ -57,10 +57,27 @@ A comprehensive internet speed monitoring system built with Next.js, TypeScript,
    npm run db:seed
    ```
 
-5. **Install Speedtest CLI (optional)**
+5. **Install Speedtest CLI (required for real speed tests)**
+   
+   **Quick Setup (Windows):**
+   ```bash
+   npm run setup:speedtest
+   ```
+   
+   **Manual Installation:**
    - Download from https://www.speedtest.net/apps/cli
-   - Add to your system PATH
-   - Run `speedtest --accept-license` to accept terms
+   - Or use: `winget install Ookla.Speedtest.CLI`
+   - Or use: `choco install speedtest`
+   
+   **Verify Installation:**
+   ```bash
+   npm run check:speedtest
+   ```
+
+6. **Check system requirements**
+   ```bash
+   node scripts/check-env.js
+   ```
 
 ## Running the Application
 
