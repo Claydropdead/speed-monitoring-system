@@ -274,3 +274,41 @@ RUN apt-get install speedtest
 - **License Status**: ✅ Ready for use
 
 Your system is properly configured and ready for speed testing!
+
+## 🚀 **New Setup Automation (Added)**
+
+The project now includes automated setup scripts:
+
+### **Quick Setup Commands:**
+```bash
+# Check if everything is configured
+npm run check:speedtest
+
+# Auto-install Speedtest CLI (Windows)
+npm run setup:speedtest
+
+# Complete system check
+node scripts/check-env.js
+
+# Full automated setup
+npm run setup
+```
+
+### **Setup Script Details:**
+
+1. **`setup.ps1`** - PowerShell script that:
+   - Detects available package managers (WinGet/Chocolatey)
+   - Installs Speedtest CLI automatically
+   - Accepts license agreement
+   - Verifies installation
+
+2. **`scripts/check-env.js`** - Environment validator that checks:
+   - Node.js version
+   - Speedtest CLI availability and version
+   - Database existence
+   - Provides setup guidance if issues found
+
+3. **Enhanced npm scripts** in `package.json`:
+   - `npm run setup` - Run full setup script
+   - `npm run setup:speedtest` - Install only Speedtest CLI
+   - `npm run check:speedtest` - Verify CLI installation
