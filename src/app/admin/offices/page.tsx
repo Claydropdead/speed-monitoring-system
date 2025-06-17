@@ -46,9 +46,144 @@ interface NewOffice {
   description: string;
   userEmail: string;
   userName: string;
-  userPassword: string;
-  sectionISPs?: { [section: string]: string[] }; // Advanced: Section-specific ISPs
+  userPassword: string;  sectionISPs?: { [section: string]: string[] }; // Advanced: Section-specific ISPs
 }
+
+// Unit and SubUnit mapping
+const UNIT_SUBUNIT_MAPPING = {
+  'RMFB': [
+    'RMFB HQ',
+    'TSC',
+    '401st',
+    '402nd',
+    '403rd',
+    '404th',
+    '405th',
+  ],
+  'Palawan PPO': [
+    'Puerto Prinsesa CHQ',
+    'Puerto Prinsesa CMFC',
+    'Police Station 1 Mendoza',
+    'Police Station 2 Irawan',
+    'Police Station 3',
+    'Police Station 4',
+    'Police Station 5',
+    'Palawan PHQ',
+    '1st PMFC',
+    '2nd PMFC',
+    'Aborlan MPS',
+    'Agutaya MPS',
+    'Araceli MPS',
+    'Balabac MPS',
+    'Bataraza MPS',
+    'Brooke\'s Point MPS',
+    'Busuanga MPS',
+    'Cagayancillo MPS',
+    'Coron MPS',
+    'Culion MPS',
+    'Cuyo MPS',
+    'Dumaran MPS',
+    'El Nido MPS',
+    'Española MPS',
+    'Kalayaan MPS',
+    'Linapacan MPS',
+    'Magsaysay MPS',
+    'Narra MPS',
+    'Quezon MPS',
+    'Rizal MPS',
+    'Roxas MPS',
+    'San Vicente MPS',
+    'Taytay MPS',
+  ],
+  'Romblon PPO': [
+    'Romblon PHQ',
+    'Romblon PMFC',
+    'Alcantara MPS',
+    'Banton MPS',
+    'Cajidiocan MPS',
+    'Calatrava MPS',
+    'Concepcion MPS',
+    'Corcuera MPS',
+    'Ferrol MPS',
+    'Looc MPS',
+    'Magdiwang MPS',
+    'Odiongan MPS',
+    'Romblon MPS',
+    'San Agustin MPS',
+    'San Andres MPS',
+    'San Fernando MPS',
+    'San Jose MPS',
+    'Santa Fe MPS',
+    'Santa Maria MPS',
+  ],
+  'Marinduque PPO': [
+    '1st PMFP',
+    '2nd PMFP',
+    'Boac MPS',
+    'Buenavista MPS',
+    'Gasan MPS',
+    'Mogpog MPS',
+    'Santa Cruz MPS',
+    'Torrijos MPS',
+  ],
+  'Occidental Mindoro PPO': [
+    '1st PMFC',
+    '2nd PMFC',
+    'Abra de Ilog MPS',
+    'Calintaan MPS',
+    'Looc MPS',
+    'Lubang MPS',
+    'Magsaysay MPS',
+    'Mamburao MPS',
+    'Paluan MPS',
+    'Rizal MPS',
+    'Sablayan MPS',
+    'San Jose MPS',
+    'Santa Cruz MPS',
+  ],
+  'Oriental Mindoro PPO': [
+    '1st PMFC',
+    '2nd PMFC',
+    'PTPU',
+    'Calapan CPS',
+    'Baco MPS',
+    'Bansud MPS',
+    'Bongabong MPS',
+    'Bulalacao MPS',
+    'Gloria MPS',
+    'Mansalay MPS',
+    'Naujan MPS',
+    'Pinamalayan MPS',
+    'Pola MPS',
+    'Puerto Galera MPS',
+    'Roxas MPS',
+    'San Teodoro MPS',
+    'Socorro MPS',
+    'Victoria MPS',
+  ],
+  'RHQ': [
+    'ORD',
+    'ORDA',
+    'ODRDO',
+    'OCRS',
+    'RPRMD',
+    'RID',
+    'ROMD',
+    'RLRDD',
+    'RCADD',
+    'RCD',
+    'RIDMD',
+    'RLDDD',
+    'RPSMD',
+    'RHSU',
+    'ORESPO',
+    'RHRAO',
+    'RPSMU',
+    'RPIO',
+  ],
+} as const;
+
+type UnitType = keyof typeof UNIT_SUBUNIT_MAPPING;
 
 interface OfficeUser {
   id: string;
@@ -57,17 +192,6 @@ interface OfficeUser {
   role: string;  createdAt: string;
   updatedAt: string;
 }
-
-// Fixed office units
-const OFFICE_UNITS = [
-  'RHQ',
-  'Oriental Mindoro PPO',
-  'Occidental Mindoro PPO', 
-  'Marinduque PPO',
-  'Romblon PPO',
-  'Palawan PPO',
-  'RMFB'
-];
 
 export default function AdminOfficesPage() {
   const { data: session, status } = useSession();
@@ -94,10 +218,47 @@ export default function AdminOfficesPage() {
   const [loadingUsers, setLoadingUsers] = useState(false);  const [editingOffice, setEditingOffice] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<Office>>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  const [sectionList, setSectionList] = useState<string[]>(['']); // List of sections
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);  const [sectionList, setSectionList] = useState<string[]>(['']); // List of sections
   const [showEditAdvancedSettings, setShowEditAdvancedSettings] = useState(false);
   const [editSectionList, setEditSectionList] = useState<string[]>(['']); // List of sections for edit form
+
+  // Unit/SubUnit state management
+  const [selectedUnit, setSelectedUnit] = useState<string>('');
+  const [availableSubUnits, setAvailableSubUnits] = useState<string[]>([]);
+  const [editSelectedUnit, setEditSelectedUnit] = useState<string>('');
+  const [editAvailableSubUnits, setEditAvailableSubUnits] = useState<string[]>([]);
+
+  // Helper function to handle unit selection
+  const handleUnitChange = (unit: string) => {
+    setSelectedUnit(unit);
+    setFormData({ ...formData, unitOffice: unit, subUnitOffice: '' });
+      if (unit && UNIT_SUBUNIT_MAPPING[unit as UnitType]) {
+      setAvailableSubUnits([...UNIT_SUBUNIT_MAPPING[unit as UnitType]]);
+    } else {
+      setAvailableSubUnits([]);
+    }
+  };
+
+  // Helper function to handle subunit selection
+  const handleSubUnitChange = (subUnit: string) => {
+    setFormData({ ...formData, subUnitOffice: subUnit });
+  };
+
+  // Helper function to handle edit unit selection
+  const handleEditUnitChange = (unit: string) => {
+    setEditSelectedUnit(unit);
+    setEditFormData({ ...editFormData, unitOffice: unit, subUnitOffice: '' });
+      if (unit && UNIT_SUBUNIT_MAPPING[unit as UnitType]) {
+      setEditAvailableSubUnits([...UNIT_SUBUNIT_MAPPING[unit as UnitType]]);
+    } else {
+      setEditAvailableSubUnits([]);
+    }
+  };
+
+  // Helper function to handle edit subunit selection
+  const handleEditSubUnitChange = (subUnit: string) => {
+    setEditFormData({ ...editFormData, subUnitOffice: subUnit });
+  };
 
   // Helper functions for managing ISPs
   const addISPField = () => {
@@ -381,9 +542,7 @@ export default function AdminOfficesPage() {
     } catch {
       existingSectionISPs = {};
       sections = [''];
-    }
-
-    setEditFormData({
+    }    setEditFormData({
       id: office.id,
       unitOffice: office.unitOffice,
       subUnitOffice: office.subUnitOffice || '',
@@ -393,6 +552,14 @@ export default function AdminOfficesPage() {
       description: office.description || '',
       sectionISPs: JSON.stringify(existingSectionISPs)
     });
+    
+    // Set unit/subunit dropdowns for edit form
+    setEditSelectedUnit(office.unitOffice);
+    if (office.unitOffice && UNIT_SUBUNIT_MAPPING[office.unitOffice as UnitType]) {
+      setEditAvailableSubUnits([...UNIT_SUBUNIT_MAPPING[office.unitOffice as UnitType]]);
+    } else {
+      setEditAvailableSubUnits([]);
+    }
     
     setEditSectionList(sections);
     setShowEditAdvancedSettings(Object.keys(existingSectionISPs).length > 0);
@@ -440,7 +607,6 @@ export default function AdminOfficesPage() {
   const handleCancelEdit = () => {
     resetEditFormData();
   };
-
   // Helper function to reset form data
   const resetFormData = () => {
     setFormData({
@@ -457,14 +623,17 @@ export default function AdminOfficesPage() {
     });
     setSectionList(['']);
     setShowAdvancedSettings(false);
+    setSelectedUnit('');
+    setAvailableSubUnits([]);
     setError(null);
     setSuccessMessage(null);
-  };
-  // Helper function to reset edit form data
+  };  // Helper function to reset edit form data
   const resetEditFormData = () => {
     setEditFormData({});
     setEditSectionList(['']);
     setShowEditAdvancedSettings(false);
+    setEditSelectedUnit('');
+    setEditAvailableSubUnits([]);
     setEditingOffice(null);
     setError(null);
     setSuccessMessage(null);
@@ -609,31 +778,39 @@ export default function AdminOfficesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Unit Office *
-                    </label>
-                    <select
-                      value={formData.unitOffice}
-                      onChange={(e) => setFormData({ ...formData, unitOffice: e.target.value })}
+                    </label>                    <select
+                      value={selectedUnit}
+                      onChange={(e) => handleUnitChange(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       required
                     >
                       <option value="">Select Office Unit</option>
-                      {OFFICE_UNITS.map((unit) => (
+                      {Object.keys(UNIT_SUBUNIT_MAPPING).map((unit) => (
                         <option key={unit} value={unit}>
-                          {unit}                        </option>
+                          {unit}
+                        </option>
                       ))}
                     </select>
-                  </div>
-                  <div>
+                  </div>                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Sub-unit Office
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={formData.subUnitOffice}
-                      onChange={(e) => setFormData({ ...formData, subUnitOffice: e.target.value })}
+                      onChange={(e) => handleSubUnitChange(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter sub-unit office name (optional)"
-                    />
+                      disabled={!selectedUnit || availableSubUnits.length === 0}
+                    >
+                      <option value="">Select Sub-unit Office</option>
+                      {availableSubUnits.map((subUnit) => (
+                        <option key={subUnit} value={subUnit}>
+                          {subUnit}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedUnit && availableSubUnits.length === 0 && (
+                      <p className="text-sm text-gray-500 mt-1">No sub-units available for selected unit</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1180,32 +1357,39 @@ export default function AdminOfficesPage() {
                   <div className="space-y-4">
                     <div>                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         Unit Office *
-                      </label>
-                      <select
-                        value={editFormData.unitOffice || ''}
-                        onChange={(e) => setEditFormData({ ...editFormData, unitOffice: e.target.value })}
+                      </label>                      <select
+                        value={editSelectedUnit}
+                        onChange={(e) => handleEditUnitChange(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         required
                       >
                         <option value="">Select Office Unit</option>
-                        {OFFICE_UNITS.map((unit) => (
+                        {Object.keys(UNIT_SUBUNIT_MAPPING).map((unit) => (
                           <option key={unit} value={unit}>
                             {unit}
                           </option>
                         ))}
                       </select>
-                    </div>
-                    <div>
+                    </div>                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Sub-unit Office
                       </label>
-                      <input
-                        type="text"
+                      <select
                         value={editFormData.subUnitOffice || ''}
-                        onChange={(e) => setEditFormData({ ...editFormData, subUnitOffice: e.target.value || undefined })}
+                        onChange={(e) => handleEditSubUnitChange(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Enter sub-unit office name (optional)"
-                      />
+                        disabled={!editSelectedUnit || editAvailableSubUnits.length === 0}
+                      >
+                        <option value="">Select Sub-unit Office</option>
+                        {editAvailableSubUnits.map((subUnit) => (
+                          <option key={subUnit} value={subUnit}>
+                            {subUnit}
+                          </option>
+                        ))}
+                      </select>
+                      {editSelectedUnit && editAvailableSubUnits.length === 0 && (
+                        <p className="text-sm text-gray-500 mt-1">No sub-units available for selected unit</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">

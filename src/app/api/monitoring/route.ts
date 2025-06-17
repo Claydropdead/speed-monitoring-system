@@ -73,45 +73,81 @@ export async function GET(request: NextRequest) {
     });    // Process monitoring data for each office
     const monitoringData = offices.map((office) => {
       const officeTests = speedTests.filter(test => test.officeId === office.id);
-      let officeIsps: string[] = [];
-        // Safely parse ISPs array and combine with section-specific ISPs
+      let officeIsps: string[] = [];      // Safely parse ISPs and create section-specific ISP identifiers
+      let allISPs: Array<{isp: string, section: string}> = [];
+      
       try {
-        // Start with general ISPs
+        // Add general ISPs with proper double JSON handling
         if (office.isps) {
-          const parsed = JSON.parse(office.isps);
-          officeIsps = Array.isArray(parsed) ? parsed : [office.isp].filter(Boolean);
-        } else {
-          officeIsps = office.isp ? [office.isp] : [];
+          let generalISPs = JSON.parse(office.isps);
+          
+          // Handle case where JSON is double-encoded as string
+          if (typeof generalISPs === 'string') {
+            try {
+              generalISPs = JSON.parse(generalISPs);
+            } catch (e) {
+              // If it fails to parse again, treat as single ISP string
+              generalISPs = [generalISPs];
+            }
+          }
+          
+          if (Array.isArray(generalISPs)) {
+            generalISPs.forEach(isp => {
+              if (isp && isp.trim()) {
+                allISPs.push({ isp: isp.trim(), section: 'General' });
+              }
+            });
+          } else if (typeof generalISPs === 'string' && generalISPs.trim()) {
+            allISPs.push({ isp: generalISPs.trim(), section: 'General' });
+          }
+        } else if (office.isp) {
+          allISPs.push({ isp: office.isp, section: 'General' });
         }
         
         // Add section-specific ISPs
         if (office.sectionISPs) {
           const sectionISPs = JSON.parse(office.sectionISPs);
           if (typeof sectionISPs === 'object' && sectionISPs !== null) {
-            Object.values(sectionISPs).forEach((isps: any) => {
+            Object.entries(sectionISPs).forEach(([section, isps]: [string, any]) => {
               if (Array.isArray(isps)) {
-                officeIsps = [...officeIsps, ...isps];
+                isps.forEach(isp => {
+                  if (isp && isp.trim()) {
+                    allISPs.push({ isp: isp.trim(), section });
+                  }
+                });
               }
             });
           }
         }
         
-        // Remove duplicates and filter out empty strings
-        officeIsps = [...new Set(officeIsps)].filter(isp => isp && isp.trim());
+        // Ensure we have at least one ISP
+        if (allISPs.length === 0 && office.isp) {
+          allISPs.push({ isp: office.isp, section: 'General' });
+        }
         
       } catch (error) {
-        console.warn(`Failed to parse ISPs for office ${office.id} (${office.unitOffice}), using primary ISP:`, error);
-        officeIsps = office.isp ? [office.isp] : [];
+        console.warn(`Failed to parse ISPs for office ${office.id} (${office.unitOffice}):`, error);
+        allISPs = office.isp ? [{ isp: office.isp, section: 'General' }] : [{ isp: 'Unknown ISP', section: 'General' }];
       }
-      
-      // Ensure officeIsps is always an array with at least one entry
-      if (!Array.isArray(officeIsps) || officeIsps.length === 0) {
-        officeIsps = office.isp ? [office.isp] : ['Unknown ISP'];
-      }
-      
-      // Create compliance data per ISP
-      const ispCompliance = officeIsps.map((isp) => {
-        const ispTests = officeTests.filter(test => test.isp === isp);
+        // Create compliance data per ISP-section combination
+      const ispCompliance = allISPs.map((ispItem) => {
+        // Create section-specific ISP identifier for matching against stored tests
+        const ispIdentifier = `${ispItem.isp} (${ispItem.section})`;
+        
+        // Filter tests for this specific ISP-section combination
+        const ispTests = officeTests.filter(test => {
+          // Check if the stored ISP already includes section info
+          const storedISP = test.isp;
+          const sectionMatch = storedISP.match(/^(.+?)\s*\((.+?)\)$/);
+          
+          if (sectionMatch) {
+            // ISP has section info: "Globe (IT)" -> compare with "Globe (IT)"
+            return storedISP === ispIdentifier;
+          } else {
+            // Legacy ISP without section info - only match if it's a General ISP
+            return ispItem.section === 'General' && storedISP === ispItem.isp;
+          }
+        });
         
         // Categorize tests by time slot for this ISP
         const morningTests = ispTests.filter(test => isWithinTimeSlot(test.timestamp, TimeSlot.MORNING));
@@ -125,10 +161,8 @@ export async function GET(request: NextRequest) {
 
         // Calculate compliance for this ISP
         const completedSlots = [latestMorning, latestNoon, latestAfternoon].filter(Boolean).length;
-        const compliancePercentage = Math.round((completedSlots / 3) * 100);
-
-        return {
-          isp,
+        const compliancePercentage = Math.round((completedSlots / 3) * 100);        return {
+          isp: `${ispItem.isp} (${ispItem.section})`, // Display ISP with section
           compliance: {
             percentage: compliancePercentage,
             completedSlots,
@@ -167,22 +201,21 @@ export async function GET(request: NextRequest) {
             total: ispTests.length,
           },
         };
-      });
-
-      // Calculate overall office compliance (average across all ISPs)
-      const totalRequiredSlots = officeIsps.length * 3; // 3 slots per ISP
+      });      // Calculate overall office compliance (average across all ISPs)
+      const totalRequiredSlots = allISPs.length * 3; // 3 slots per ISP-section combination
       const totalCompletedSlots = ispCompliance.reduce((sum, isp) => sum + isp.compliance.completedSlots, 0);
       const overallCompliancePercentage = totalRequiredSlots > 0 
         ? Math.round((totalCompletedSlots / totalRequiredSlots) * 100) 
         : 0;
 
-      return {        office: {
+      return {
+        office: {
           id: office.id,
           unitOffice: office.unitOffice,
           subUnitOffice: office.subUnitOffice,
           location: office.location,
           isp: office.isp,
-          isps: officeIsps, // Use the processed array instead of raw string
+          isps: allISPs.map(item => `${item.isp} (${item.section})`), // Show section-specific ISPs
         },
         compliance: {
           percentage: overallCompliancePercentage,

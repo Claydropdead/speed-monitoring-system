@@ -532,7 +532,7 @@ export default function Tests() {
                         <span className="font-medium">"{mismatchData.detectedISP}"</span> is not configured for your office.
                       </p>
                     </div>
-                    <p className="text-sm text-gray-700">Available ISPs: {availableISPs.available.join(', ')}</p>
+                    <p className="text-sm text-gray-700">Available ISPs: {availableISPs.available.map(item => `${item.isp} (${item.section})`).join(', ')}</p>
                     <p className="text-sm text-gray-600 mt-2">Please select a different ISP manually.</p>
                   </div>
                 );
