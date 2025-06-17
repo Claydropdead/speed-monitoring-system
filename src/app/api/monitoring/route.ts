@@ -34,19 +34,23 @@ export async function GET(request: NextRequest) {
     // Set to start and end of the target date
     const startOfDay = new Date(targetDate);
     startOfDay.setHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);    // Get all offices with their ISPs using raw query to avoid TypeScript issues
-    const offices = await prisma.$queryRaw`
-      SELECT id, unitOffice, subUnitOffice, location, isp, isps FROM offices ORDER BY unitOffice ASC
-    ` as Array<{
-      id: string;
-      unitOffice: string;
-      subUnitOffice: string | null;
-      location: string;
-      isp: string;
-      isps: string | null;
-    }>;
+      const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Get all offices with their ISPs
+    const offices = await prisma.office.findMany({
+      select: {
+        id: true,
+        unitOffice: true,
+        subUnitOffice: true,
+        location: true,
+        isp: true,
+        isps: true,
+      },
+      orderBy: {
+        unitOffice: 'asc',
+      },
+    });
 
     // Get all speed tests for the target date
     const speedTests = await prisma.speedTest.findMany({
@@ -63,15 +67,22 @@ export async function GET(request: NextRequest) {
         download: true,
         upload: true,
         ping: true,
-        isp: true,
-      },
+        isp: true,      },
       orderBy: {
         timestamp: 'desc',
       },
     });    // Process monitoring data for each office
     const monitoringData = offices.map((office) => {
       const officeTests = speedTests.filter(test => test.officeId === office.id);
-      const officeIsps = JSON.parse(office.isps || '[]') as string[];
+      let officeIsps: string[] = [];
+      
+      // Safely parse ISPs array
+      try {
+        officeIsps = office.isps ? JSON.parse(office.isps) : [office.isp];
+      } catch (error) {
+        console.warn(`Failed to parse ISPs for office ${office.id}, using primary ISP:`, error);
+        officeIsps = [office.isp];
+      }
       
       // Create compliance data per ISP
       const ispCompliance = officeIsps.map((isp) => {

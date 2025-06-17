@@ -8,10 +8,11 @@ import bcrypt from 'bcryptjs';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    
-    if (!session) {
+      if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }    if (session.user?.role !== 'ADMIN') {
+    }
+
+    if (session.user?.role !== 'ADMIN') {
       // Office users can only see their own office
       const office = await prisma.office.findUnique({
         where: { id: session.user?.officeId || '' },
@@ -27,10 +28,10 @@ export async function GET() {
 
       if (!office) {
         return NextResponse.json({ error: 'Office not found' }, { status: 404 });
-      }
+      }      return NextResponse.json({ offices: [office] });
+    }
 
-      return NextResponse.json({ offices: [office] });
-    }    // Admin can see all offices
+    // Admin can see all offices
     const offices = await prisma.office.findMany({
       include: {
         _count: {
@@ -56,7 +57,9 @@ export async function POST(request: NextRequest) {
     
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }    const body = await request.json();
+    }
+
+    const body = await request.json();
     const { unitOffice, subUnitOffice, location, section, isp, isps, description, userEmail, userName, userPassword } = body;
 
     console.log('POST /api/offices - Create request:', { unitOffice, location, isp, isps });
@@ -76,21 +79,22 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json({ error: 'User email already exists' }, { status: 400 });
-    }
+    }    // Hash the password
+    const hashedPassword = await bcrypt.hash(userPassword, 12);
 
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(userPassword, 12);    // Create office and user in a transaction
+    // Create office and user in a transaction
     const result = await prisma.$transaction(async (tx) => {      // Create the office exactly as specified - no automatic parent creation
-      const office = await tx.office.create({        data: {
+      const office = await tx.office.create({
+        data: {
           unitOffice,
           subUnitOffice: subUnitOffice || null,
           location,
           section,
           isp,
-          isps: isps || null, // Store the JSON string of all ISPs
+          isps: isps ? JSON.stringify(isps) : null, // Properly stringify array to JSON
           description,
           parentId: null, // Always null since we're not using hierarchy for now
-        } as any, // Type assertion to work around Prisma type cache issues
+        },
       });
 
       // Create the user for this office
@@ -176,10 +180,11 @@ export async function DELETE(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
-    if (!session || session.user.role !== 'ADMIN') {
+      if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }    const body = await request.json();
+    }
+
+    const body = await request.json();
     const { id, unitOffice, subUnitOffice, location, section, isp, isps, description } = body;
 
     console.log('PUT /api/offices - Update request:', { id, unitOffice, location, isp, isps });
@@ -191,21 +196,20 @@ export async function PUT(request: NextRequest) {
     // Check if office exists
     const existingOffice = await prisma.office.findUnique({
       where: { id }
-    });
-
-    if (!existingOffice) {
+    });    if (!existingOffice) {
       return NextResponse.json({ error: 'Office not found' }, { status: 404 });
     }    // Update the office
     const updatedOffice = await prisma.office.update({
-      where: { id },      data: {
+      where: { id },
+      data: {
         unitOffice,
         subUnitOffice,
         location,
         section,
         isp,
-        isps: isps || null, // Store the JSON string of all ISPs
+        isps: isps ? JSON.stringify(isps) : null, // Properly stringify array to JSON
         description,
-      } as any, // Type assertion to work around Prisma type cache issues
+      },
       include: {
         _count: {
           select: {

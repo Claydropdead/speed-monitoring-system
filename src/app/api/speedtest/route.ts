@@ -21,10 +21,7 @@ export async function GET(request: NextRequest) {
     // Check permissions
     if (session.user?.role !== 'ADMIN' && !admin && session.user?.officeId !== officeId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    // Build query filter
-    const where: any = {};
+    }    const where: any = {};
     if (session.user?.role !== 'ADMIN' && !admin) {
       where.officeId = session.user?.officeId;
     } else if (officeId) {
@@ -32,7 +29,9 @@ export async function GET(request: NextRequest) {
     }
 
     const offset = (page - 1) * limit;
-    const total = await prisma.speedTest.count({ where });      const tests = await prisma.speedTest.findMany({
+    const total = await prisma.speedTest.count({ where });
+
+    const tests = await prisma.speedTest.findMany({
       where,
       include: {
         office: {
@@ -80,14 +79,16 @@ export async function POST(request: NextRequest) {
     // Check permissions
     if (session.user?.role !== 'ADMIN' && session.user?.officeId !== officeId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }    if (runTest) {
+    }
+
+    if (runTest) {
       // For now, skip ISP validation to get the system working
       // TODO: Implement ISP validation using the available-isps endpoint
 
       const { testResult } = body;
       
       let testData;
-        if (testResult) {
+      if (testResult) {
         // Use pre-computed results from SSE stream
         testData = testResult;
       } else {
@@ -116,13 +117,13 @@ export async function POST(request: NextRequest) {
           download: testData.download,
           upload: testData.upload,
           ping: testData.ping,
-          jitter: testData.jitter,
-          packetLoss: testData.packetLoss,
+          jitter: testData.jitter || 0,
+          packetLoss: testData.packetLoss || 0,
           isp: selectedISP || (testData as any).ispName || office.isp, // Use selected ISP, detected ISP, or fallback to office ISP
-          serverId: testData.serverId,
-          serverName: testData.serverName,
+          serverId: testData.serverId || '',
+          serverName: testData.serverName || '',
           rawData: testData.rawData || '',
-        } as any,
+        },
         include: {
           office: {
             select: {
@@ -141,6 +142,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   } catch (error) {
+    console.error('Error in speedtest POST:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
