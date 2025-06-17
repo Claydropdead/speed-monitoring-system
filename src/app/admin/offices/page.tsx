@@ -173,6 +173,7 @@ const UNIT_SUBUNIT_MAPPING = {
     'RCADD',
     'RCD',
     'RIDMD',
+    'RICTMD',
     'RLDDD',
     'RPSMD',
     'RHSU',

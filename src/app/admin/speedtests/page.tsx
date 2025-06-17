@@ -193,7 +193,8 @@ function AdminSpeedTestsContent() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Timestamp
                   </th>
-                </tr>              </thead>
+                </tr>
+              </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {Array.isArray(speedTests) && speedTests.map((test) => (
                   <tr key={test.id} className="hover:bg-gray-50">
