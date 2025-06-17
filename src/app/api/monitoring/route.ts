@@ -25,18 +25,32 @@ export async function GET(request: NextRequest) {
     
     if (!session || session.user?.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
+    }    const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get('date');
+    const unitFilter = searchParams.get('unit');
+    const subunitFilter = searchParams.get('subunit');
     const targetDate = dateParam ? new Date(dateParam) : new Date();
     
     // Set to start and end of the target date
     const startOfDay = new Date(targetDate);
     startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);    // Get all offices with their ISPs
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Build the where clause for office filtering
+    const officeWhereClause: any = {};
+    
+    if (unitFilter) {
+      officeWhereClause.unitOffice = unitFilter;
+    }
+    
+    if (subunitFilter) {
+      officeWhereClause.subUnitOffice = subunitFilter;
+    }
+
+    // Get filtered offices with their ISPs
     const offices = await prisma.office.findMany({
+      where: officeWhereClause,
       select: {
         id: true,
         unitOffice: true,
@@ -51,9 +65,35 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Get all speed tests for the target date
+    // If no offices match the filter criteria, return early
+    if (offices.length === 0) {
+      return NextResponse.json({
+        date: targetDate.toISOString().split('T')[0],
+        summary: {
+          totalOffices: 0,
+          fullyCompliantOffices: 0,
+          partiallyCompliantOffices: 0,
+          nonCompliantOffices: 0,
+          overallCompliancePercentage: 0,
+        },
+        offices: [],
+        timeSlots: {
+          morning: { label: 'Morning', window: '6:00 AM - 11:59 AM' },
+          noon: { label: 'Noon', window: '12:00 PM - 12:59 PM' },
+          afternoon: { label: 'Afternoon', window: '1:00 PM - 6:00 PM' },
+        },
+      });
+    }
+
+    // Get office IDs for optimized speed test query
+    const officeIds = offices.map(office => office.id);
+
+    // Get speed tests only for filtered offices and target date
     const speedTests = await prisma.speedTest.findMany({
       where: {
+        officeId: {
+          in: officeIds,
+        },
         timestamp: {
           gte: startOfDay,
           lte: endOfDay,
@@ -66,11 +106,12 @@ export async function GET(request: NextRequest) {
         download: true,
         upload: true,
         ping: true,
-        isp: true,      },
+        isp: true,
+      },
       orderBy: {
         timestamp: 'desc',
       },
-    });    // Process monitoring data for each office
+    });// Process monitoring data for each office
     const monitoringData = offices.map((office) => {
       const officeTests = speedTests.filter(test => test.officeId === office.id);
       let officeIsps: string[] = [];      // Safely parse ISPs and create section-specific ISP identifiers

@@ -5,7 +5,144 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '../../../components/dashboard-layout';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, Clock, AlertTriangle, Calendar, TrendingUp } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertTriangle, Calendar, TrendingUp, Filter, X } from 'lucide-react';
+
+// Unit and SubUnit mapping for filtering
+const UNIT_SUBUNIT_MAPPING = {
+  'RMFB': [
+    'RMFB HQ',
+    'TSC',
+    '401st',
+    '402nd',
+    '403rd',
+    '404th',
+    '405th',
+  ],
+  'Palawan PPO': [
+    'Puerto Prinsesa CHQ',
+    'Puerto Prinsesa CMFC',
+    'Police Station 1 Mendoza',
+    'Police Station 2 Irawan',
+    'Police Station 3',
+    'Police Station 4',
+    'Police Station 5',
+    'Palawan PHQ',
+    '1st PMFC',
+    '2nd PMFC',
+    'Aborlan MPS',
+    'Agutaya MPS',
+    'Araceli MPS',
+    'Balabac MPS',
+    'Bataraza MPS',
+    'Brooke\'s Point MPS',
+    'Busuanga MPS',
+    'Cagayancillo MPS',
+    'Coron MPS',
+    'Culion MPS',
+    'Cuyo MPS',
+    'Dumaran MPS',
+    'El Nido MPS',
+    'Española MPS',
+    'Kalayaan MPS',
+    'Linapacan MPS',
+    'Magsaysay MPS',
+    'Narra MPS',
+    'Quezon MPS',
+    'Rizal MPS',
+    'Roxas MPS',
+    'San Vicente MPS',
+    'Taytay MPS',
+  ],
+  'Romblon PPO': [
+    'Romblon PHQ',
+    'Romblon PMFC',
+    'Alcantara MPS',
+    'Banton MPS',
+    'Cajidiocan MPS',
+    'Calatrava MPS',
+    'Concepcion MPS',
+    'Corcuera MPS',
+    'Ferrol MPS',
+    'Looc MPS',
+    'Magdiwang MPS',
+    'Odiongan MPS',
+    'Romblon MPS',
+    'San Agustin MPS',
+    'San Andres MPS',
+    'San Fernando MPS',
+    'San Jose MPS',
+    'Santa Fe MPS',
+    'Santa Maria MPS',
+  ],
+  'Marinduque PPO': [
+    '1st PMFP',
+    '2nd PMFP',
+    'Boac MPS',
+    'Buenavista MPS',
+    'Gasan MPS',
+    'Mogpog MPS',
+    'Santa Cruz MPS',
+    'Torrijos MPS',
+  ],
+  'Occidental Mindoro PPO': [
+    '1st PMFC',
+    '2nd PMFC',
+    'Abra de Ilog MPS',
+    'Calintaan MPS',
+    'Looc MPS',
+    'Lubang MPS',
+    'Magsaysay MPS',
+    'Mamburao MPS',
+    'Paluan MPS',
+    'Rizal MPS',
+    'Sablayan MPS',
+    'San Jose MPS',
+    'Santa Cruz MPS',
+  ],
+  'Oriental Mindoro PPO': [
+    '1st PMFC',
+    '2nd PMFC',
+    'PTPU',
+    'Calapan CPS',
+    'Baco MPS',
+    'Bansud MPS',
+    'Bongabong MPS',
+    'Bulalacao MPS',
+    'Gloria MPS',
+    'Mansalay MPS',
+    'Naujan MPS',
+    'Pinamalayan MPS',
+    'Pola MPS',
+    'Puerto Galera MPS',
+    'Roxas MPS',
+    'San Teodoro MPS',
+    'Socorro MPS',
+    'Victoria MPS',
+  ],
+  'RHQ': [
+    'ORD',
+    'ORDA',
+    'ODRDO',
+    'OCRS',
+    'RPRMD',
+    'RID',
+    'ROMD',
+    'RLRDD',
+    'RCADD',
+    'RCD',
+    'RIDMD',
+    'RICTMD',
+    'RLDDD',
+    'RPSMD',
+    'RHSU',
+    'ORESPO',
+    'RHRAO',
+    'RPSMU',
+    'RPIO',
+  ],
+} as const;
+
+type UnitType = keyof typeof UNIT_SUBUNIT_MAPPING;
 
 interface TestResult {
   id: string;
@@ -78,9 +215,14 @@ export default function MonitoringPage() {
   const router = useRouter();
   const [monitoringData, setMonitoringData] = useState<MonitoringData | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedUnit, setSelectedUnit] = useState<UnitType | ''>('');
+  const [selectedSubUnit, setSelectedSubUnit] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Get available subunits based on selected unit
+  const availableSubUnits = selectedUnit ? UNIT_SUBUNIT_MAPPING[selectedUnit] : [];
   useEffect(() => {
     if (status === 'loading') return;
 
@@ -95,13 +237,18 @@ export default function MonitoringPage() {
     }
 
     fetchMonitoringData();
-  }, [session, status, selectedDate, router]);
+  }, [session, status, selectedDate, selectedUnit, selectedSubUnit, router]);
 
   const fetchMonitoringData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/monitoring?date=${selectedDate}`);
+      const params = new URLSearchParams();
+      params.append('date', selectedDate);
+      if (selectedUnit) params.append('unit', selectedUnit);
+      if (selectedSubUnit) params.append('subunit', selectedSubUnit);
+      
+      const response = await fetch(`/api/monitoring?${params.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to fetch monitoring data');
       }
@@ -112,6 +259,16 @@ export default function MonitoringPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUnitChange = (unit: UnitType | '') => {
+    setSelectedUnit(unit);
+    setSelectedSubUnit(''); // Reset subunit when unit changes
+  };
+
+  const clearFilters = () => {
+    setSelectedUnit('');
+    setSelectedSubUnit('');
   };
 
   const getComplianceColor = (percentage: number) => {
@@ -176,8 +333,7 @@ export default function MonitoringPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
+      <div className="space-y-6">        {/* Header */}
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Daily Speed Test Monitoring</h1>
@@ -186,6 +342,18 @@ export default function MonitoringPage() {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
+            >
+              <Filter className="h-4 w-4" />
+              Filters
+              {(selectedUnit || selectedSubUnit) && (
+                <span className="ml-1 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+                  {selectedUnit ? (selectedSubUnit ? '2' : '1') : '0'}
+                </span>
+              )}
+            </button>
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-gray-500" />
               <input
@@ -203,6 +371,80 @@ export default function MonitoringPage() {
             </button>
           </div>
         </div>
+
+        {/* Filter Panel */}
+        {showFilters && (
+          <div className="card">
+            <div className="card-header">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Filters</h3>
+                <button
+                  onClick={() => setShowFilters(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="card-content">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Unit
+                  </label>
+                  <select
+                    value={selectedUnit}
+                    onChange={(e) => handleUnitChange(e.target.value as UnitType | '')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">All Units</option>
+                    {Object.keys(UNIT_SUBUNIT_MAPPING).map((unit) => (
+                      <option key={unit} value={unit}>
+                        {unit}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sub Unit
+                  </label>
+                  <select
+                    value={selectedSubUnit}
+                    onChange={(e) => setSelectedSubUnit(e.target.value)}
+                    disabled={!selectedUnit}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">All Sub Units</option>
+                    {availableSubUnits.map((subUnit) => (
+                      <option key={subUnit} value={subUnit}>
+                        {subUnit}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={clearFilters}
+                    disabled={!selectedUnit && !selectedSubUnit}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              </div>
+              {(selectedUnit || selectedSubUnit) && (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Active Filters:</strong>
+                    {selectedUnit && ` Unit: ${selectedUnit}`}
+                    {selectedSubUnit && `, Sub Unit: ${selectedSubUnit}`}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
