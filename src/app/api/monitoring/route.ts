@@ -35,9 +35,7 @@ export async function GET(request: NextRequest) {
     const startOfDay = new Date(targetDate);
     startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    // Get all offices with their ISPs
+    endOfDay.setHours(23, 59, 59, 999);    // Get all offices with their ISPs
     const offices = await prisma.office.findMany({
       select: {
         id: true,
@@ -46,6 +44,7 @@ export async function GET(request: NextRequest) {
         location: true,
         isp: true,
         isps: true,
+        sectionISPs: true,
       },
       orderBy: {
         unitOffice: 'asc',
@@ -75,13 +74,39 @@ export async function GET(request: NextRequest) {
     const monitoringData = offices.map((office) => {
       const officeTests = speedTests.filter(test => test.officeId === office.id);
       let officeIsps: string[] = [];
-      
-      // Safely parse ISPs array
+        // Safely parse ISPs array and combine with section-specific ISPs
       try {
-        officeIsps = office.isps ? JSON.parse(office.isps) : [office.isp];
+        // Start with general ISPs
+        if (office.isps) {
+          const parsed = JSON.parse(office.isps);
+          officeIsps = Array.isArray(parsed) ? parsed : [office.isp].filter(Boolean);
+        } else {
+          officeIsps = office.isp ? [office.isp] : [];
+        }
+        
+        // Add section-specific ISPs
+        if (office.sectionISPs) {
+          const sectionISPs = JSON.parse(office.sectionISPs);
+          if (typeof sectionISPs === 'object' && sectionISPs !== null) {
+            Object.values(sectionISPs).forEach((isps: any) => {
+              if (Array.isArray(isps)) {
+                officeIsps = [...officeIsps, ...isps];
+              }
+            });
+          }
+        }
+        
+        // Remove duplicates and filter out empty strings
+        officeIsps = [...new Set(officeIsps)].filter(isp => isp && isp.trim());
+        
       } catch (error) {
-        console.warn(`Failed to parse ISPs for office ${office.id}, using primary ISP:`, error);
-        officeIsps = [office.isp];
+        console.warn(`Failed to parse ISPs for office ${office.id} (${office.unitOffice}), using primary ISP:`, error);
+        officeIsps = office.isp ? [office.isp] : [];
+      }
+      
+      // Ensure officeIsps is always an array with at least one entry
+      if (!Array.isArray(officeIsps) || officeIsps.length === 0) {
+        officeIsps = office.isp ? [office.isp] : ['Unknown ISP'];
       }
       
       // Create compliance data per ISP
@@ -151,14 +176,13 @@ export async function GET(request: NextRequest) {
         ? Math.round((totalCompletedSlots / totalRequiredSlots) * 100) 
         : 0;
 
-      return {
-        office: {
+      return {        office: {
           id: office.id,
           unitOffice: office.unitOffice,
           subUnitOffice: office.subUnitOffice,
           location: office.location,
           isp: office.isp,
-          isps: officeIsps,
+          isps: officeIsps, // Use the processed array instead of raw string
         },
         compliance: {
           percentage: overallCompliancePercentage,

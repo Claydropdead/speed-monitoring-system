@@ -60,6 +60,7 @@ interface Office {
   subUnitOffice?: string;
   location: string;
   isp: string;
+  sectionISPs?: string;
   _count: {
     speedTests: number;
     users: number;
@@ -80,8 +81,7 @@ export default function AdminDashboard() {
       return;
     }
     fetchAdminData();
-  }, [session, router]);
-  const fetchAdminData = async () => {
+  }, [session, router]);  const fetchAdminData = async () => {
     try {
       const [statsResponse, officesResponse, complianceResponse] = await Promise.all([
         fetch('/api/dashboard/stats?days=30'),
@@ -107,6 +107,50 @@ export default function AdminDashboard() {
       console.error('Error fetching admin data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Helper function to get all ISPs for an office
+  const getOfficeISPs = (office: Office) => {
+    const allISPs = new Set<string>();
+    
+    // Add general ISPs
+    if (office.isp) {
+      const generalISPs = office.isp.split(',').map(isp => isp.trim()).filter(Boolean);
+      generalISPs.forEach(isp => allISPs.add(isp));
+    }
+    
+    // Add section-specific ISPs
+    if (office.sectionISPs) {
+      try {
+        const sectionData = JSON.parse(office.sectionISPs);
+        Object.values(sectionData).forEach((isps: any) => {
+          if (Array.isArray(isps)) {
+            isps.forEach(isp => allISPs.add(isp));
+          }
+        });
+      } catch (error) {
+        console.error('Error parsing section ISPs:', error);
+      }
+    }
+    
+    return Array.from(allISPs);
+  };
+
+  // Helper function to get section-specific ISP summary
+  const getSectionISPSummary = (office: Office) => {
+    if (!office.sectionISPs) return null;
+    
+    try {
+      const sectionData = JSON.parse(office.sectionISPs);
+      const sectionCount = Object.keys(sectionData).length;
+      const totalSectionISPs = Object.values(sectionData).reduce((total: number, isps: any) => {
+        return total + (Array.isArray(isps) ? isps.length : 0);
+      }, 0);
+      
+      return { sectionCount, totalSectionISPs };
+    } catch (error) {
+      return null;
     }
   };
 
@@ -363,39 +407,70 @@ export default function AdminDashboard() {
             </Link>
           </div>
           <div className="card-content">
-            {offices.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {offices.map((office) => (
-                  <div key={office.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h4 className="font-semibold text-gray-900">
-                          {office.unitOffice}
-                          {office.subUnitOffice && (
-                            <span className="text-gray-600 ml-1">- {office.subUnitOffice}</span>
-                          )}
-                        </h4>
-                        <p className="text-sm text-gray-600">{office.location}</p>
-                        <p className="text-xs text-gray-500">{office.isp}</p>
+            {offices.length > 0 ? (              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {offices.map((office) => {
+                  const allISPs = getOfficeISPs(office);
+                  const sectionSummary = getSectionISPSummary(office);
+                  
+                  return (
+                    <div key={office.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900">
+                            {office.unitOffice}
+                            {office.subUnitOffice && (
+                              <span className="text-gray-600 ml-1">- {office.subUnitOffice}</span>
+                            )}
+                          </h4>
+                          <p className="text-sm text-gray-600">{office.location}</p>
+                          
+                          {/* ISP Information */}
+                          <div className="mt-2">
+                            {allISPs.length > 0 ? (
+                              <div className="space-y-1">
+                                <div className="flex flex-wrap gap-1">
+                                  {allISPs.slice(0, 3).map((isp, index) => (
+                                    <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                      {isp}
+                                    </span>
+                                  ))}
+                                  {allISPs.length > 3 && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                      +{allISPs.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                                {sectionSummary && (
+                                  <p className="text-xs text-green-600">
+                                    Advanced: {sectionSummary.sectionCount} section(s), {sectionSummary.totalSectionISPs} total ISPs
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-500">No ISPs configured</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right ml-4">
+                          <div className="text-lg font-bold text-blue-600">{office._count.speedTests}</div>
+                          <div className="text-xs text-gray-500">tests</div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-blue-600">{office._count.speedTests}</div>
-                        <div className="text-xs text-gray-500">tests</div>
+                      <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <Users className="h-4 w-4 mr-1" />
+                          {office._count.users} users
+                        </div>
+                        <Link 
+                          href={`/admin/speedtests?office=${office.id}`}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          View Tests
+                        </Link>
                       </div>
                     </div>
-                    <div className="flex justify-between items-center pt-3 border-t border-gray-100">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Users className="h-4 w-4 mr-1" />
-                        {office._count.users} users
-                      </div>                      <Link 
-                        href={`/admin/speedtests?office=${office.id}`}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                      >
-                        View Tests
-                      </Link>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8">

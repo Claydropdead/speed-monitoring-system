@@ -57,12 +57,10 @@ export async function POST(request: NextRequest) {
     
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    }    const body = await request.json();
+    const { unitOffice, subUnitOffice, location, section, isp, isps, description, userEmail, userName, userPassword, sectionISPs } = body;
 
-    const body = await request.json();
-    const { unitOffice, subUnitOffice, location, section, isp, isps, description, userEmail, userName, userPassword } = body;
-
-    console.log('POST /api/offices - Create request:', { unitOffice, location, isp, isps });
+    console.log('POST /api/offices - Create request:', { unitOffice, location, isp, isps, sectionISPs });
 
     if (!unitOffice || !location || !isp) {
       return NextResponse.json({ error: 'Missing required office fields' }, { status: 400 });
@@ -89,9 +87,10 @@ export async function POST(request: NextRequest) {
           unitOffice,
           subUnitOffice: subUnitOffice || null,
           location,
-          section,
+          section: section || null, // Make section optional
           isp,
           isps: isps ? JSON.stringify(isps) : null, // Properly stringify array to JSON
+          sectionISPs: sectionISPs ? JSON.stringify(sectionISPs) : null, // Store section-specific ISPs
           description,
           parentId: null, // Always null since we're not using hierarchy for now
         },
@@ -182,12 +181,10 @@ export async function PUT(request: NextRequest) {
     const session = await getServerSession(authOptions);
       if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    }    const body = await request.json();
+    const { id, unitOffice, subUnitOffice, location, section, isp, isps, description, sectionISPs } = body;
 
-    const body = await request.json();
-    const { id, unitOffice, subUnitOffice, location, section, isp, isps, description } = body;
-
-    console.log('PUT /api/offices - Update request:', { id, unitOffice, location, isp, isps });
+    console.log('PUT /api/offices - Update request:', { id, unitOffice, location, isp, isps, sectionISPs });
 
     if (!id || !unitOffice || !location || !isp) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -205,9 +202,10 @@ export async function PUT(request: NextRequest) {
         unitOffice,
         subUnitOffice,
         location,
-        section,
+        section: section || null, // Make section optional
         isp,
-        isps: isps ? JSON.stringify(isps) : null, // Properly stringify array to JSON
+        isps: isps || null, // isps is already a JSON string from frontend
+        sectionISPs: sectionISPs || null, // sectionISPs is already a JSON string from frontend
         description,
       },
       include: {

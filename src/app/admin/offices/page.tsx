@@ -26,6 +26,7 @@ interface Office {
   section?: string;
   isp: string; // Primary ISP (for backward compatibility)
   isps?: string; // JSON string of all ISPs
+  sectionISPs?: string; // JSON string of section-specific ISPs
   description?: string;
   parentId?: string;
   parent?: Office;
@@ -40,13 +41,13 @@ interface NewOffice {
   unitOffice: string;
   subUnitOffice?: string;
   location: string;
-  section: string;
   isp: string; // Primary ISP
   isps: string[]; // Array of all ISPs
   description: string;
   userEmail: string;
   userName: string;
   userPassword: string;
+  sectionISPs?: { [section: string]: string[] }; // Advanced: Section-specific ISPs
 }
 
 interface OfficeUser {
@@ -78,22 +79,25 @@ export default function AdminOfficesPage() {
     unitOffice: '',
     subUnitOffice: '',
     location: '',
-    section: '',
     isp: '',
     isps: [''], // Start with one empty ISP
     description: '',
     userEmail: '',
     userName: '',
-    userPassword: ''
+    userPassword: '',
+    sectionISPs: {} // Advanced section-specific ISPs
   });
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [viewingUsers, setViewingUsers] = useState<string | null>(null);
   const [officeUsers, setOfficeUsers] = useState<OfficeUser[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [editingOffice, setEditingOffice] = useState<string | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState(false);  const [editingOffice, setEditingOffice] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<Office>>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [sectionList, setSectionList] = useState<string[]>(['']); // List of sections
+  const [showEditAdvancedSettings, setShowEditAdvancedSettings] = useState(false);
+  const [editSectionList, setEditSectionList] = useState<string[]>(['']); // List of sections for edit form
 
   // Helper functions for managing ISPs
   const addISPField = () => {
@@ -146,16 +150,70 @@ export default function AdminOfficesPage() {
       });
     }
   };
-
   const getEditISPsArray = (): string[] => {
     if (editFormData.isps) {
       try {
-        return JSON.parse(editFormData.isps as string);
+        const parsed = JSON.parse(editFormData.isps as string);
+        return Array.isArray(parsed) ? parsed : [editFormData.isp || ''];
       } catch {
         return [editFormData.isp || ''];
       }
     }
     return [editFormData.isp || ''];
+  };
+
+  // Helper functions for managing sections and advanced settings
+  const addSectionField = () => {
+    setSectionList([...sectionList, '']);
+  };
+
+  const removeSectionField = (index: number) => {
+    if (sectionList.length > 1) {
+      const newSections = sectionList.filter((_, i) => i !== index);
+      setSectionList(newSections);
+      // Also remove from sectionISPs if it exists
+      const updatedSectionISPs = { ...formData.sectionISPs };
+      const sectionToRemove = sectionList[index];
+      if (sectionToRemove && updatedSectionISPs && updatedSectionISPs[sectionToRemove]) {
+        delete updatedSectionISPs[sectionToRemove];
+        setFormData({ ...formData, sectionISPs: updatedSectionISPs });
+      }
+    }
+  };
+
+  const updateSection = (index: number, value: string) => {
+    const newSections = [...sectionList];
+    const oldValue = newSections[index];
+    newSections[index] = value;
+    setSectionList(newSections);
+    
+    // Update sectionISPs mapping if section name changed
+    if (oldValue && formData.sectionISPs && formData.sectionISPs[oldValue]) {
+      const updatedSectionISPs = { ...formData.sectionISPs };
+      updatedSectionISPs[value] = updatedSectionISPs[oldValue];
+      delete updatedSectionISPs[oldValue];
+      setFormData({ ...formData, sectionISPs: updatedSectionISPs });
+    }
+  };  const updateSectionISPs = (section: string, isps: string[]) => {
+    const updatedSectionISPs = { ...formData.sectionISPs || {} };
+    if (isps.length > 0) {
+      updatedSectionISPs[section] = isps; // Keep all ISPs including empty ones for editing
+    } else {
+      delete updatedSectionISPs[section];
+    }
+    setFormData({ ...formData, sectionISPs: updatedSectionISPs });
+  };
+
+  // Helper function to validate section ISPs
+  const validateSectionISPs = (sectionISPs: { [section: string]: string[] }): boolean => {
+    return Object.values(sectionISPs).every(isps => 
+      isps.every(isp => isp.trim().length > 0)
+    );
+  };
+
+  // Helper function to get total ISP count for a section
+  const getSectionISPCount = (section: string): number => {
+    return (formData.sectionISPs?.[section] || []).filter(isp => isp.trim()).length;
   };
 
   useEffect(() => {
@@ -211,8 +269,8 @@ export default function AdminOfficesPage() {
   };
   const handleAddOffice = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const filledISPs = formData.isps.filter(isp => isp.trim());    if (!formData.unitOffice || !formData.location || !formData.section || filledISPs.length === 0 || !formData.userEmail || !formData.userName || !formData.userPassword) {
+      const filledISPs = formData.isps.filter(isp => isp.trim());
+    if (!formData.unitOffice || !formData.location || filledISPs.length === 0 || !formData.userEmail || !formData.userName || !formData.userPassword) {
       setError('Please fill in all required fields and at least one ISP');
       return;
     }
@@ -232,23 +290,10 @@ export default function AdminOfficesPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(officeData),
-      });
-
-      if (response.ok) {
-        await fetchOffices();        setFormData({ 
-          unitOffice: '', 
-          subUnitOffice: '',
-          location: '',
-          section: '',
-          isp: '', 
-          isps: [''],
-          description: '',
-          userEmail: '',
-          userName: '',
-          userPassword: ''
-        });
+      });      if (response.ok) {
+        await fetchOffices();
+        resetFormData();
         setShowAddForm(false);
-        setError(null);
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to create office');
@@ -322,17 +367,35 @@ export default function AdminOfficesPage() {
         existingISPs = [office.isp];
       }
     } catch {
-      existingISPs = [office.isp];
-    }    setEditFormData({
+      existingISPs = [office.isp];    }
+
+    // Parse section-specific ISPs if available
+    let existingSectionISPs: { [section: string]: string[] } = {};
+    let sections: string[] = [''];
+    try {
+      if (office.sectionISPs) {
+        existingSectionISPs = JSON.parse(office.sectionISPs);
+        sections = Object.keys(existingSectionISPs);
+        if (sections.length === 0) sections = [''];
+      }
+    } catch {
+      existingSectionISPs = {};
+      sections = [''];
+    }
+
+    setEditFormData({
       id: office.id,
       unitOffice: office.unitOffice,
       subUnitOffice: office.subUnitOffice || '',
       location: office.location,
-      section: office.section || '',
       isp: office.isp,
       isps: JSON.stringify(existingISPs),
-      description: office.description || ''
+      description: office.description || '',
+      sectionISPs: JSON.stringify(existingSectionISPs)
     });
+    
+    setEditSectionList(sections);
+    setShowEditAdvancedSettings(Object.keys(existingSectionISPs).length > 0);
     setError(null);
     setSuccessMessage(null);
   };  const handleUpdateOffice = async (e: React.FormEvent) => {
@@ -343,13 +406,12 @@ export default function AdminOfficesPage() {
     if (!editFormData.unitOffice || !editFormData.location || filledISPs.length === 0) {
       setError('Please fill in all required fields and at least one ISP');
       return;
-    }    try {
-      setSubmitting(true);
-      
-      const updateData = {
+    }try {
+      setSubmitting(true);      const updateData = {
         ...editFormData,
         isp: filledISPs[0], // Set primary ISP to the first one
         isps: JSON.stringify(filledISPs), // Store all ISPs as JSON
+        sectionISPs: editFormData.sectionISPs || '{}', // Include section-specific ISPs
       };
 
       const response = await fetch('/api/offices', {
@@ -358,13 +420,9 @@ export default function AdminOfficesPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(updateData),
-      });
-
-      if (response.ok) {
+      });      if (response.ok) {
         await fetchOffices();
-        setEditingOffice(null);
-        setEditFormData({});
-        setError(null);
+        resetEditFormData();
         setSuccessMessage('Office updated successfully!');
         // Clear success message after 3 seconds
         setTimeout(() => setSuccessMessage(null), 3000);
@@ -379,12 +437,97 @@ export default function AdminOfficesPage() {
       setSubmitting(false);
     }
   };
-
   const handleCancelEdit = () => {
-    setEditingOffice(null);
-    setEditFormData({});
+    resetEditFormData();
+  };
+
+  // Helper function to reset form data
+  const resetFormData = () => {
+    setFormData({
+      unitOffice: '',
+      subUnitOffice: '',
+      location: '',
+      isp: '',
+      isps: [''],
+      description: '',
+      userEmail: '',
+      userName: '',
+      userPassword: '',
+      sectionISPs: {}
+    });
+    setSectionList(['']);
+    setShowAdvancedSettings(false);
     setError(null);
     setSuccessMessage(null);
+  };
+  // Helper function to reset edit form data
+  const resetEditFormData = () => {
+    setEditFormData({});
+    setEditSectionList(['']);
+    setShowEditAdvancedSettings(false);
+    setEditingOffice(null);
+    setError(null);
+    setSuccessMessage(null);
+  };
+
+  // Helper functions for managing edit form sections and advanced settings
+  const addEditSectionField = () => {
+    setEditSectionList([...editSectionList, '']);
+  };
+
+  const removeEditSectionField = (index: number) => {
+    if (editSectionList.length > 1) {
+      const newSections = editSectionList.filter((_, i) => i !== index);
+      setEditSectionList(newSections);
+      // Also remove from sectionISPs if it exists
+      const sectionToRemove = editSectionList[index];
+      if (sectionToRemove && editFormData.sectionISPs) {
+        try {
+          const currentSectionISPs = JSON.parse(editFormData.sectionISPs);
+          if (currentSectionISPs[sectionToRemove]) {
+            delete currentSectionISPs[sectionToRemove];
+            setEditFormData({ ...editFormData, sectionISPs: JSON.stringify(currentSectionISPs) });
+          }
+        } catch (e) {
+          console.error('Error removing section from edit form:', e);
+        }
+      }
+    }
+  };
+
+  const updateEditSection = (index: number, value: string) => {
+    const newSections = [...editSectionList];
+    const oldValue = newSections[index];
+    newSections[index] = value;
+    setEditSectionList(newSections);
+    
+    // Update sectionISPs mapping if section name changed
+    if (oldValue && editFormData.sectionISPs) {
+      try {
+        const currentSectionISPs = JSON.parse(editFormData.sectionISPs);
+        if (currentSectionISPs[oldValue]) {
+          currentSectionISPs[value] = currentSectionISPs[oldValue];
+          delete currentSectionISPs[oldValue];
+          setEditFormData({ ...editFormData, sectionISPs: JSON.stringify(currentSectionISPs) });
+        }
+      } catch (e) {
+        console.error('Error updating section in edit form:', e);
+      }
+    }
+  };
+
+  const updateEditSectionISPs = (section: string, isps: string[]) => {
+    try {
+      const currentSectionISPs = editFormData.sectionISPs ? JSON.parse(editFormData.sectionISPs) : {};
+      if (isps.length > 0) {
+        currentSectionISPs[section] = isps;
+      } else {
+        delete currentSectionISPs[section];
+      }
+      setEditFormData({ ...editFormData, sectionISPs: JSON.stringify(currentSectionISPs) });
+    } catch (e) {
+      console.error('Error updating section ISPs in edit form:', e);
+    }
   };
 
   if (status === 'loading') {
@@ -428,9 +571,14 @@ export default function AdminOfficesPage() {
               <p className="text-gray-600 mt-1">
                 Manage offices and their network monitoring settings
               </p>
-            </div>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
+            </div>            <button
+              onClick={() => {
+                if (!showAddForm) {
+                  // Reset form data when opening the form
+                  resetFormData();
+                }
+                setShowAddForm(!showAddForm);
+              }}
               disabled={editingOffice !== null}
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
             >
@@ -496,22 +644,143 @@ export default function AdminOfficesPage() {
                       value={formData.location}
                       onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="City, State/Province"
-                      required
-                    />                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Section *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.section}
-                      onChange={(e) => setFormData({ ...formData, section: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter section name"
-                      required
+                      placeholder="City, State/Province"                      required
                     />
                   </div>
+                  
+                  {/* Advanced Settings Toggle */}
+                  <div className="md:col-span-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                      className="flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                      <span>{showAdvancedSettings ? '🔽' : '▶️'}</span>
+                      Advanced Settings - Section-specific ISPs
+                    </button>
+                  </div>
+
+                  {/* Advanced Settings Panel */}
+                  {showAdvancedSettings && (
+                    <div className="md:col-span-2 border border-gray-200 rounded-lg p-4 bg-gray-50">                      <h4 className="text-sm font-medium text-gray-700 mb-3">
+                        Section-specific ISP Configuration
+                      </h4>
+                      <p className="text-xs text-gray-600 mb-4">
+                        Configure different ISPs for specific sections. Each section can have multiple ISPs. 
+                        If no sections are configured, the office will use the general ISP settings above.
+                      </p>
+                      
+                      <div className="space-y-3">
+                        {sectionList.map((section, sectionIndex) => (
+                          <div key={sectionIndex} className="border border-gray-300 rounded-md p-3 bg-white">
+                            <div className="flex items-center gap-2 mb-2">
+                              <input
+                                type="text"
+                                value={section}
+                                onChange={(e) => updateSection(sectionIndex, e.target.value)}
+                                placeholder="Section name"
+                                className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                              />
+                              {sectionList.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeSectionField(sectionIndex)}
+                                  className="p-1 text-red-600 hover:text-red-800"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                              <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs text-gray-600">ISPs for this section:</label>
+                                <span className="text-xs text-green-600">
+                                  {(formData.sectionISPs?.[section] || ['']).filter(isp => isp.trim()).length} ISP(s) configured
+                                </span>
+                              </div>
+                              {(formData.sectionISPs?.[section] || ['']).map((sectionISP, ispIndex) => (
+                                <div key={ispIndex} className="flex gap-1 items-center">
+                                  <span className="text-xs text-gray-400 w-6">{ispIndex + 1}.</span>
+                                  <input
+                                    type="text"
+                                    value={sectionISP}
+                                    onChange={(e) => {
+                                      const currentISPs = formData.sectionISPs?.[section] || [''];
+                                      const newISPs = [...currentISPs];
+                                      newISPs[ispIndex] = e.target.value;
+                                      updateSectionISPs(section, newISPs);
+                                    }}
+                                    placeholder={`ISP ${ispIndex + 1} name (e.g. GLOBE, SMART, PLDT)`}
+                                    className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                  />                                  <button
+                                    type="button"                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      const currentISPs = formData.sectionISPs?.[section] || [''];
+                                      const newISPs = [...currentISPs, ''];
+                                      updateSectionISPs(section, newISPs);
+                                    }}
+                                    className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
+                                    title="Add another ISP"
+                                  >
+                                    + ISP
+                                  </button>
+                                  {(formData.sectionISPs?.[section] || ['']).length > 1 && (                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        const currentISPs = formData.sectionISPs?.[section] || [''];
+                                        const newISPs = currentISPs.filter((_, i) => i !== ispIndex);
+                                        updateSectionISPs(section, newISPs);
+                                      }}
+                                      className="px-2 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50"
+                                      title="Remove this ISP"
+                                    >
+                                      ×
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                              
+                              {/* Quick add common ISPs */}
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                <div className="flex flex-wrap gap-1">
+                                  <span className="text-xs text-gray-500 mr-2">Quick add:</span>
+                                  {['GLOBE', 'SMART', 'PLDT', 'CONVERGE', 'SKY'].map((commonISP) => (
+                                    <button
+                                      key={commonISP}
+                                      type="button"                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        const currentISPs = formData.sectionISPs?.[section] || [''];
+                                        // Check if ISP already exists
+                                        if (!currentISPs.includes(commonISP)) {
+                                          const newISPs = currentISPs.filter(isp => isp.trim()); // Remove empty entries
+                                          newISPs.push(commonISP);
+                                          updateSectionISPs(section, newISPs);
+                                        }
+                                      }}
+                                      className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
+                                      disabled={(formData.sectionISPs?.[section] || []).includes(commonISP)}
+                                    >
+                                      {commonISP}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        <button
+                          type="button"
+                          onClick={addSectionField}
+                          className="w-full py-2 border border-dashed border-gray-300 rounded-md text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600"
+                        >
+                          + Add Another Section
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       ISP Providers *
@@ -613,10 +882,13 @@ export default function AdminOfficesPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex justify-end space-x-3">
-                  <button
+                <div className="flex justify-end space-x-3">                  <button
                     type="button"
-                    onClick={() => setShowAddForm(false)}
+                    onClick={() => {
+                      // Reset form data when canceling
+                      resetFormData();
+                      setShowAddForm(false);
+                    }}
                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
                   >
                     Cancel
@@ -655,12 +927,54 @@ export default function AdminOfficesPage() {
                       </h3>                      <div className="flex items-center text-sm text-gray-600 mt-1">
                         <MapPin className="h-4 w-4 mr-1" />
                         {office.location}
-                      </div>
-                      {office.section && (
+                      </div>                      {office.section && (
                         <div className="text-xs text-gray-500 mt-1">
-                          � {office.section}
+                          📋 {office.section}
                         </div>
-                      )}
+                      )}                        {/* Display ISP configuration summary */}
+                      {(() => {
+                        try {
+                          // Count general ISPs
+                          let generalISPCount = 0;
+                          if (office.isps) {
+                            const generalISPs = JSON.parse(office.isps);
+                            if (Array.isArray(generalISPs)) {
+                              generalISPCount = generalISPs.filter(isp => isp && isp.trim()).length;
+                            }
+                          } else if (office.isp) {
+                            generalISPCount = 1;
+                          }
+                            // Count section-specific ISPs
+                          let sectionISPCount = 0;
+                          let totalSections = 0;
+                          const sectionISPs = office.sectionISPs ? JSON.parse(office.sectionISPs) : null;
+                          if (sectionISPs && Object.keys(sectionISPs).length > 0) {
+                            totalSections = Object.keys(sectionISPs).length;
+                            sectionISPCount = Object.values(sectionISPs)
+                              .flat()
+                              .filter((isp: any) => isp && typeof isp === 'string' && isp.trim()).length;
+                          }
+                          
+                          const totalISPs = generalISPCount + sectionISPCount;
+                          
+                          if (totalSections > 0) {
+                            return (
+                              <div className="text-xs text-green-600 mt-1">
+                                🔧 Advanced ISP Settings: {totalSections} section(s), {totalISPs} total ISPs
+                              </div>
+                            );
+                          } else if (generalISPCount > 0) {
+                            return (
+                              <div className="text-xs text-gray-500 mt-1">
+                                🌐 {generalISPCount} ISP{generalISPCount > 1 ? 's' : ''} configured
+                              </div>
+                            );
+                          }
+                        } catch (error) {
+                          // Ignore JSON parse errors
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                   <div className="flex space-x-1">
@@ -696,33 +1010,75 @@ export default function AdminOfficesPage() {
                       <span className="inline-block w-2 h-2 bg-gray-400 rounded-full mr-2"></span>
                       Sub-unit of: {offices.find(o => o.id === office.parentId)?.unitOffice || 'Unknown'}
                     </div>
-                  )}
-                    <div className="flex items-start text-sm text-gray-600">
+                  )}                  <div className="flex items-start text-sm text-gray-600">
                     <Globe className="h-4 w-4 mr-2 mt-0.5" />
-                    <div>
+                    <div className="flex-1">
                       <span className="font-medium">ISPs:</span>
-                      <div className="ml-1 flex flex-wrap gap-1 mt-1">
                         {(() => {
-                          let displayISPs: string[] = [];
-                          try {
-                            if (office.isps) {
-                              displayISPs = JSON.parse(office.isps);
-                            } else {
-                              displayISPs = [office.isp];
-                            }
-                          } catch {
-                            displayISPs = [office.isp];
+                        let displayISPs: string[] = [];
+                        let sectionISPs: { [key: string]: string[] } = {};
+                        
+                        try {
+                          if (office.isps) {
+                            const parsed = JSON.parse(office.isps);
+                            displayISPs = Array.isArray(parsed) ? parsed : [office.isp].filter(Boolean);
+                          } else {
+                            displayISPs = office.isp ? [office.isp] : [];
                           }
-                          return displayISPs.map((isp, index) => (
-                            <span 
-                              key={index}
-                              className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
-                            >
-                              {isp}
-                            </span>
-                          ));
-                        })()}
-                      </div>
+                          
+                          if (office.sectionISPs) {
+                            const parsedSections = JSON.parse(office.sectionISPs);
+                            sectionISPs = typeof parsedSections === 'object' && parsedSections ? parsedSections : {};
+                          }
+                        } catch (error) {
+                          console.warn('Failed to parse office ISPs:', error);
+                          displayISPs = office.isp ? [office.isp] : [];
+                        }
+                        
+                        // Ensure displayISPs is always an array
+                        if (!Array.isArray(displayISPs)) {
+                          displayISPs = office.isp ? [office.isp] : ['Unknown ISP'];
+                        }
+                        
+                        return (
+                          <div className="mt-1">
+                            {/* General ISPs */}
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              <span className="text-xs text-gray-500">General:</span>
+                              {displayISPs.map((isp, index) => (
+                                <span 
+                                  key={index}
+                                  className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
+                                >
+                                  {isp}
+                                </span>
+                              ))}
+                            </div>
+                              {/* Section-specific ISPs */}
+                            {Object.keys(sectionISPs).length > 0 && (
+                              <div className="space-y-1">
+                                <span className="text-xs text-gray-500">Section-specific ISPs:</span>
+                                {Object.entries(sectionISPs).map(([section, isps]) => (
+                                  <div key={section} className="text-xs">
+                                    <span className="text-gray-600 font-medium">{section}:</span>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {isps.map((isp, index) => (
+                                        <span 
+                                          key={index}
+                                          className="inline-block px-1.5 py-0.5 bg-green-100 text-green-800 text-xs rounded"
+                                        >
+                                          {isp}
+                                        </span>
+                                      ))}
+                                      <span className="text-xs text-gray-400">({isps.length} ISP{isps.length > 1 ? 's' : ''})</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -862,18 +1218,189 @@ export default function AdminOfficesPage() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="City, State/Province"
                         required
-                      />                    </div>                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Section
-                      </label>
-                      <input
-                        type="text"
-                        value={editFormData.section || ''}
-                        onChange={(e) => setEditFormData({ ...editFormData, section: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Office section or department"
-                      />
-                    </div>                    <div className="md:col-span-2">
+                      />                    </div>
+                    
+                    {/* Advanced Settings Toggle */}
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setShowEditAdvancedSettings(!showEditAdvancedSettings)}
+                        className="flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      >
+                        <span>{showEditAdvancedSettings ? '🔽' : '▶️'}</span>
+                        Advanced Settings - Section-specific ISPs
+                      </button>
+                    </div>
+
+                    {/* Advanced Settings Panel */}
+                    {showEditAdvancedSettings && (
+                      <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">                        <h4 className="text-sm font-medium text-gray-700 mb-3">
+                          Section-specific ISP Configuration
+                        </h4>
+                        <p className="text-xs text-gray-600 mb-4">
+                          Configure different ISPs for specific sections. Each section can have multiple ISPs. 
+                          If no sections are configured, the office will use the general ISP settings below.
+                        </p>
+                        
+                        <div className="space-y-3">
+                          {editSectionList.map((section, sectionIndex) => (
+                            <div key={sectionIndex} className="border border-gray-300 rounded-md p-3 bg-white">
+                              <div className="flex items-center gap-2 mb-2">
+                                <input
+                                  type="text"
+                                  value={section}
+                                  onChange={(e) => updateEditSection(sectionIndex, e.target.value)}
+                                  placeholder="Section name"
+                                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                />
+                                {editSectionList.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeEditSectionField(sectionIndex)}
+                                    className="p-1 text-red-600 hover:text-red-800"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                                <div className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-xs text-gray-600">ISPs for this section:</label>
+                                  <span className="text-xs text-green-600">
+                                    {(() => {
+                                      try {
+                                        const sectionISPs = editFormData.sectionISPs ? JSON.parse(editFormData.sectionISPs) : {};
+                                        return (sectionISPs[section] || ['']).filter((isp: string) => isp.trim()).length;
+                                      } catch {
+                                        return 0;
+                                      }
+                                    })()} ISP(s) configured
+                                  </span>
+                                </div>
+                                {(() => {
+                                  try {
+                                    const sectionISPs = editFormData.sectionISPs ? JSON.parse(editFormData.sectionISPs) : {};
+                                    return (sectionISPs[section] || ['']).map((sectionISP: string, ispIndex: number) => (
+                                      <div key={ispIndex} className="flex gap-1 items-center">
+                                        <span className="text-xs text-gray-400 w-6">{ispIndex + 1}.</span>
+                                        <input
+                                          type="text"
+                                          value={sectionISP}
+                                          onChange={(e) => {
+                                            const currentISPs = sectionISPs[section] || [''];
+                                            const newISPs = [...currentISPs];
+                                            newISPs[ispIndex] = e.target.value;
+                                            updateEditSectionISPs(section, newISPs);
+                                          }}
+                                          placeholder={`ISP ${ispIndex + 1} name (e.g. GLOBE, SMART, PLDT)`}
+                                          className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                        />                                        <button
+                                          type="button"                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            const currentISPs = sectionISPs[section] || [''];
+                                            const newISPs = [...currentISPs, ''];
+                                            updateEditSectionISPs(section, newISPs);
+                                          }}
+                                          className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
+                                          title="Add another ISP"
+                                        >
+                                          + ISP
+                                        </button>
+                                        {(sectionISPs[section] || ['']).length > 1 && (                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              const currentISPs = sectionISPs[section] || [''];
+                                              const newISPs = currentISPs.filter((_: string, i: number) => i !== ispIndex);
+                                              updateEditSectionISPs(section, newISPs);
+                                            }}
+                                            className="px-2 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50"
+                                            title="Remove this ISP"
+                                          >
+                                            ×
+                                          </button>
+                                        )}
+                                      </div>
+                                    ));
+                                  } catch {
+                                    return (
+                                      <div className="flex gap-1 items-center">
+                                        <span className="text-xs text-gray-400 w-6">1.</span>
+                                        <input
+                                          type="text"
+                                          value=""
+                                          onChange={(e) => updateEditSectionISPs(section, [e.target.value])}
+                                          placeholder="ISP 1 name (e.g. GLOBE, SMART, PLDT)"
+                                          className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            updateEditSectionISPs(section, ['', '']);
+                                          }}
+                                          className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
+                                        >
+                                          + ISP
+                                        </button>
+                                      </div>
+                                    );
+                                  }
+                                })()}
+                                
+                                {/* Quick add common ISPs */}
+                                <div className="mt-2 pt-2 border-t border-gray-200">
+                                  <div className="flex flex-wrap gap-1">
+                                    <span className="text-xs text-gray-500 mr-2">Quick add:</span>
+                                    {['GLOBE', 'SMART', 'PLDT', 'CONVERGE', 'SKY'].map((commonISP) => (
+                                      <button
+                                        key={commonISP}
+                                        type="button"                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          try {
+                                            const sectionISPs = editFormData.sectionISPs ? JSON.parse(editFormData.sectionISPs) : {};
+                                            const currentISPs = sectionISPs[section] || [''];
+                                            // Check if ISP already exists
+                                            if (!currentISPs.includes(commonISP)) {
+                                              const newISPs = currentISPs.filter((isp: string) => isp.trim()); // Remove empty entries
+                                              newISPs.push(commonISP);
+                                              updateEditSectionISPs(section, newISPs);
+                                            }
+                                          } catch (e) {
+                                            updateEditSectionISPs(section, [commonISP]);
+                                          }
+                                        }}
+                                        className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
+                                        disabled={(() => {
+                                          try {
+                                            const sectionISPs = editFormData.sectionISPs ? JSON.parse(editFormData.sectionISPs) : {};
+                                            return (sectionISPs[section] || []).includes(commonISP);
+                                          } catch {
+                                            return false;
+                                          }
+                                        })()}
+                                      >
+                                        {commonISP}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          <button
+                            type="button"
+                            onClick={addEditSectionField}
+                            className="w-full py-2 border border-dashed border-gray-300 rounded-md text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600"
+                          >
+                            + Add Another Section
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         ISP Providers *
                       </label>

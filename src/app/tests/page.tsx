@@ -36,8 +36,8 @@ interface SpeedTestResult {
 }
 
 interface AvailableISPs {
-  available: string[];
-  tested: string[];
+  available: Array<{isp: string, section: string}>;
+  tested: Array<{isp: string, section: string}>;
   currentTimeSlot: string | null;
   timeSlotInfo: {
     morning: string;
@@ -55,6 +55,7 @@ export default function Tests() {
   const [showSpeedometer, setShowSpeedometer] = useState(false);
   const [availableISPs, setAvailableISPs] = useState<AvailableISPs | null>(null);
   const [selectedISP, setSelectedISP] = useState<string>('');
+  const [selectedSection, setSelectedSection] = useState<string>(''); // Add section tracking
   const [showISPSelector, setShowISPSelector] = useState(false);
   const [loadingISPs, setLoadingISPs] = useState(false);
   const [showISPMismatchModal, setShowISPMismatchModal] = useState(false);
@@ -121,16 +122,15 @@ export default function Tests() {
     if (!availableISPs?.currentTimeSlot) {
       alert('Testing is only allowed during designated time slots:\n- Morning: 6:00 AM - 11:59 AM\n- Noon: 12:00 PM - 12:59 PM\n- Afternoon: 1:00 PM - 6:00 PM');
       return;
-    }
-
-    if (availableISPs.available.length === 0) {
-      alert(`All ISPs have been tested in the current time slot (${availableISPs.currentTimeSlot}).\n\nTested ISPs: ${availableISPs.tested.join(', ')}\n\nPlease wait for the next time slot to continue testing.`);
+    }    if (availableISPs.available.length === 0) {
+      const testedISPNames = availableISPs.tested.map(item => `${item.isp} (${item.section})`).join(', ');
+      alert(`All ISPs have been tested in the current time slot (${availableISPs.currentTimeSlot}).\n\nTested ISPs: ${testedISPNames}\n\nPlease wait for the next time slot to continue testing.`);
       return;
-    }
-
-    if (availableISPs.available.length === 1) {
+    }    if (availableISPs.available.length === 1) {
       // Only one ISP available, select it automatically
-      setSelectedISP(availableISPs.available[0]);
+      const selectedItem = availableISPs.available[0];
+      setSelectedISP(selectedItem.isp);
+      setSelectedSection(selectedItem.section);
       setShowSpeedometer(true);
     } else {
       // Multiple ISPs available, show selector
@@ -138,8 +138,9 @@ export default function Tests() {
     }
   };
 
-  const handleISPSelection = (isp: string) => {
+  const handleISPSelection = (isp: string, section: string) => {
     setSelectedISP(isp);
+    setSelectedSection(section);
     setShowISPSelector(false);
     setShowSpeedometer(true);
   };
@@ -148,10 +149,10 @@ export default function Tests() {
     // Refresh the tests list and available ISPs to show the new result
     fetchTests();
     fetchAvailableISPs();
-  };
-  const handleSpeedTestClose = () => {
+  };  const handleSpeedTestClose = () => {
     setShowSpeedometer(false);
     setSelectedISP('');
+    setSelectedSection(''); // Clear section selection
     
     // Clear any pending restart timeouts
     if (restartTimeoutRef.current) {
@@ -179,34 +180,32 @@ export default function Tests() {
   };
 
   const handleISPMismatchOK = () => {
-    if (mismatchData && availableISPs) {
-      // Use proper ISP normalization to check if detected ISP matches any available ISP
-      const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
-      
-      const matchingISP = availableISPs.available.find((isp: string) => {
-        const availableNormalized = normalizeISPName(isp);
-        return detectedNormalized === availableNormalized;
-      });
+    if (mismatchData && availableISPs) {        // Use proper ISP normalization to check if detected ISP matches any available ISP
+        const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
+        const matchingISP = availableISPs.available.find((item) => {
+          const availableNormalized = normalizeISPName(item.isp);
+          return detectedNormalized === availableNormalized;
+        });
 
-      if (matchingISP) {
-        // Clear any existing timeout first
-        if (restartTimeoutRef.current) {
-          clearTimeout(restartTimeoutRef.current);
-        }
-        
-        // Close the mismatch modal
-        setShowISPMismatchModal(false);
-        setMismatchData(null);
-        
-        // Close speedometer first to ensure clean state
-        setShowSpeedometer(false);
-        
-        // Wait a moment for cleanup, then restart with new ISP
-        restartTimeoutRef.current = setTimeout(() => {
-          setSelectedISP(matchingISP);
-          setShowSpeedometer(true);
-          restartTimeoutRef.current = null;
-        }, 300); // Slightly longer delay for better cleanup
+        if (matchingISP) {
+          // Clear any existing timeout first
+          if (restartTimeoutRef.current) {
+            clearTimeout(restartTimeoutRef.current);
+          }
+          
+          // Close the mismatch modal
+          setShowISPMismatchModal(false);
+          setMismatchData(null);
+          
+          // Close speedometer first to ensure clean state
+          setShowSpeedometer(false);
+          // Wait a moment for cleanup, then restart with new ISP
+          restartTimeoutRef.current = setTimeout(() => {
+            setSelectedISP(matchingISP.isp);
+            setSelectedSection(matchingISP.section); // Set the correct section
+            setShowSpeedometer(true);
+            restartTimeoutRef.current = null;
+          }, 300); // Slightly longer delay for better cleanup
       } else {
         // Detected ISP not in office list - show manual selection
         alert(`The detected ISP "${mismatchData.detectedISP}" is not configured for your office. Please select from available ISPs.`);
@@ -217,12 +216,12 @@ export default function Tests() {
       }
     }
   };
-
   const handleISPMismatchCancel = () => {
     // User wants to manually select ISP
     setShowISPMismatchModal(false);
     setShowSpeedometer(false);
     setSelectedISP('');
+    setSelectedSection(''); // Clear section selection
     setShowISPSelector(true);
     setMismatchData(null);
   };
@@ -288,11 +287,13 @@ export default function Tests() {
                       <CheckCircle className="h-4 w-4" />
                       Available for Testing ({availableISPs.available.length})
                     </h4>
-                    {availableISPs.available.length > 0 ? (
-                      <ul className="space-y-1">
-                        {availableISPs.available.map((isp) => (
-                          <li key={isp} className="text-sm bg-green-50 text-green-800 px-2 py-1 rounded">
-                            {isp}
+                    {availableISPs.available.length > 0 ? (                      <ul className="space-y-1">
+                        {availableISPs.available.map((item, index) => (
+                          <li key={`${item.isp}-${item.section}-${index}`} className="text-sm bg-green-50 text-green-800 px-2 py-1 rounded flex justify-between items-center">
+                            <span className="font-medium">{item.isp}</span>
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                              {item.section}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -309,9 +310,12 @@ export default function Tests() {
                     </h4>
                     {availableISPs.tested.length > 0 ? (
                       <ul className="space-y-1">
-                        {availableISPs.tested.map((isp) => (
-                          <li key={isp} className="text-sm bg-blue-50 text-blue-800 px-2 py-1 rounded">
-                            {isp}
+                        {availableISPs.tested.map((item, index) => (
+                          <li key={`${item.isp}-${item.section}-${index}`} className="text-sm bg-blue-50 text-blue-800 px-2 py-1 rounded flex justify-between items-center">
+                            <span className="font-medium">{item.isp}</span>
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                              {item.section}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -462,12 +466,12 @@ export default function Tests() {
       </div>
 
       {/* Speed Test Modal */}
-      {session?.user?.officeId && (
-        <SpeedTestModal
+      {session?.user?.officeId && (        <SpeedTestModal
           isOpen={showSpeedometer}
           onClose={handleSpeedTestClose}
           officeId={session.user.officeId}
           selectedISP={selectedISP}
+          selectedSection={selectedSection}
           onComplete={handleSpeedTestComplete}
           onError={handleSpeedTestError}
         />
@@ -488,10 +492,9 @@ export default function Tests() {
             {(() => {
               // Check if detected ISP is available in office ISPs using proper normalization
               if (!availableISPs) return null;
-              
-              const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
-              const matchingISP = availableISPs.available.find((isp: string) => 
-                normalizeISPName(isp) === detectedNormalized
+                const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
+              const matchingISP = availableISPs.available.find((item) => 
+                normalizeISPName(item.isp) === detectedNormalized
               );
               
               if (matchingISP) {
@@ -501,18 +504,17 @@ export default function Tests() {
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-green-600 text-lg">✅</span>
                       <span className="font-medium text-green-700">ISP Match Found!</span>
-                    </div>
-                    <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-3">
+                    </div>                    <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-3">
                       <p className="text-sm text-green-800">
-                        <span className="font-medium">"{matchingISP}"</span> is available in your office ISP list.
+                        <span className="font-medium">"{matchingISP.isp} ({matchingISP.section})"</span> is available in your office ISP list.
                       </p>
                       <p className="text-xs text-green-600 mt-1">
-                        Detected: "{mismatchData.detectedISP}" → Matches: "{matchingISP}"
+                        Detected: "{mismatchData.detectedISP}" → Matches: "{matchingISP.isp}"
                       </p>
                     </div>
                     <p className="text-sm text-gray-700">Would you like to:</p>
                     <div className="mt-2 space-y-1 text-sm text-gray-600">
-                      <p>1. Proceed with <span className="font-medium">{matchingISP}</span></p>
+                      <p>1. Proceed with <span className="font-medium">{matchingISP.isp} ({matchingISP.section})</span></p>
                       <p>2. Cancel and select a different ISP</p>
                     </div>
                   </div>
@@ -554,13 +556,12 @@ export default function Tests() {
               >
                 {(() => {
                   if (!availableISPs) return 'OK';
-                  
-                  const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
-                  const matchingISP = availableISPs.available.find((isp: string) => 
-                    normalizeISPName(isp) === detectedNormalized
+                    const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
+                  const matchingISP = availableISPs.available.find((item) => 
+                    normalizeISPName(item.isp) === detectedNormalized
                   );
                   
-                  return matchingISP ? `Proceed with ${matchingISP}` : 'OK';
+                  return matchingISP ? `Proceed with ${matchingISP.isp} (${matchingISP.section})` : 'OK';
                 })()}
               </button>
             </div>
@@ -575,16 +576,20 @@ export default function Tests() {
             <h3 className="text-lg font-semibold mb-4">Select ISP to Test</h3>
             <p className="text-sm text-gray-600 mb-4">
               Choose which ISP you want to test in the current time slot ({availableISPs.currentTimeSlot}).
-            </p>
-            <div className="space-y-2">
-              {availableISPs.available.map((isp) => (
+            </p>            <div className="space-y-2">
+              {availableISPs.available.map((item, index) => (
                 <button
-                  key={isp}
-                  onClick={() => handleISPSelection(isp)}
+                  key={`${item.isp}-${item.section}-${index}`}
+                  onClick={() => handleISPSelection(item.isp, item.section)}
                   className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
                 >
-                  <div className="font-medium">{isp}</div>
-                  <div className="text-sm text-gray-500">Available for testing</div>
+                  <div className="flex justify-between items-center">
+                    <div className="font-medium">{item.isp}</div>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                      {item.section}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-500">Available for testing in {item.section} section</div>
                 </button>
               ))}
             </div>

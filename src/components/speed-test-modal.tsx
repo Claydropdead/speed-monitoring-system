@@ -21,11 +21,12 @@ interface SpeedTestModalProps {
   onClose: () => void;
   officeId: string;
   selectedISP?: string;
+  selectedSection?: string; // Add section prop
   onComplete?: (result: SpeedTestResult) => void;
   onError?: (error: string, errorData?: any) => void;
 }
 
-export default function SpeedTestModal({ isOpen, onClose, officeId, selectedISP, onComplete, onError }: SpeedTestModalProps) {
+export default function SpeedTestModal({ isOpen, onClose, officeId, selectedISP, selectedSection, onComplete, onError }: SpeedTestModalProps) {
   const [showResults, setShowResults] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isTestRunning, setIsTestRunning] = useState(false);
@@ -179,10 +180,11 @@ export default function SpeedTestModal({ isOpen, onClose, officeId, selectedISP,
                       </div>
                     </div>
                   </div>) : (                  <div>                    <Speedometer
-                      key={`speedometer-${selectedISP || 'default'}`}
+                      key={`speedometer-${selectedISP || 'default'}-${selectedSection || 'default'}`}
                       isRunning={isTestRunning}
                       officeId={officeId}
                       selectedISP={selectedISP}
+                      selectedSection={selectedSection}
                       onComplete={handleComplete}
                       onError={handleError}
                       onTestStart={() => {

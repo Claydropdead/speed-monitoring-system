@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { runSpeedTest, validateSpeedTestData } from '@/lib/speedtest';
+import { normalizeISPName } from '@/lib/isp-utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -108,6 +109,23 @@ export async function POST(request: NextRequest) {
 
       if (!office) {
         return NextResponse.json({ error: 'Office not found' }, { status: 404 });
+      }      // Determine which ISP name to save - include section for unique tracking
+      let ispToSave: string;
+      const selectedSection = body.selectedSection; // Get section from request body
+      
+      if (selectedISP && selectedSection) {
+        // Create section-specific ISP identifier for unique tracking
+        ispToSave = `${normalizeISPName(selectedISP)} (${selectedSection})`;
+        console.log(`🏷️ Using selected ISP with section: "${selectedISP}" (${selectedSection}) -> "${ispToSave}"`);
+      } else if (selectedISP) {
+        // User selected ISP but no section specified - use normalized ISP only
+        ispToSave = normalizeISPName(selectedISP);
+        console.log(`🏷️ Using selected ISP: "${selectedISP}" -> normalized: "${ispToSave}"`);
+      } else {
+        // No specific ISP selected - use detected ISP from speedtest
+        const detectedISP = (testData as any).ispName || office.isp;
+        ispToSave = normalizeISPName(detectedISP);
+        console.log(`Using detected ISP: "${detectedISP}" -> normalized: "${ispToSave}"`);
       }
 
       // Save to database
@@ -119,7 +137,7 @@ export async function POST(request: NextRequest) {
           ping: testData.ping,
           jitter: testData.jitter || 0,
           packetLoss: testData.packetLoss || 0,
-          isp: selectedISP || (testData as any).ispName || office.isp, // Use selected ISP, detected ISP, or fallback to office ISP
+          isp: ispToSave, // Use normalized ISP name for consistent tracking
           serverId: testData.serverId || '',
           serverName: testData.serverName || '',
           rawData: testData.rawData || '',

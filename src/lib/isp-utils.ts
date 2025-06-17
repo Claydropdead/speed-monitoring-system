@@ -9,41 +9,56 @@ interface ISPMapping {
 const ISP_MAPPINGS: ISPMapping[] = [
   {
     canonical: 'PLDT',
-    aliases: ['PLDT', 'Philippine Long Distance Telephone Company', 'PLDT Inc', 'pldt.com']
+    aliases: ['pldt', 'pldtr', 'philippine long distance telephone company', 'pldt inc', 'pldt.com']
   },
   {
     canonical: 'Globe',
-    aliases: ['Globe', 'Globe Telecom', 'Globe Telecom Inc', 'globe.com.ph']
+    aliases: ['globe', 'globe telecom', 'globe telecom inc', 'globe.com.ph']
   },
   {
     canonical: 'Converge',
-    aliases: ['Converge', 'Converge ICT', 'Converge ICT Solutions Inc', 'convergeict.com']
+    aliases: ['converge', 'converge ict', 'converge ict solutions inc', 'convergeict.com']
   },
   {
     canonical: 'Smart',
-    aliases: ['Smart', 'Smart Communications', 'Smart Communications Inc', 'smart.com.ph']
+    aliases: ['smart', 'smart communications', 'smart communications inc', 'smart.com.ph']
   },
   {
     canonical: 'Sky',
-    aliases: ['Sky', 'Sky Broadband', 'Sky Cable', 'skycable.com']
+    aliases: ['sky', 'sky broadband', 'sky cable', 'skycable.com']
   },
   {
     canonical: 'DITO',
-    aliases: ['DITO', 'DITO Telecommunity', 'DITO CME', 'dito.ph']
+    aliases: ['dito', 'dito telecommunity', 'dito cme', 'dito.ph']
   }
 ];
 
 // Normalize ISP name to canonical form
 export function normalizeISPName(ispName: string): string {
+  if (!ispName || !ispName.trim()) return '';
+  
   const normalized = ispName.trim().toLowerCase();
   
+  // First check if the input matches any canonical name (case-insensitive)
   for (const mapping of ISP_MAPPINGS) {
-    if (mapping.aliases.some(alias => normalized.includes(alias.toLowerCase()))) {
+    if (mapping.canonical.toLowerCase() === normalized) {
       return mapping.canonical;
     }
   }
   
-  // Return the original name if no mapping found
+  // Then check aliases
+  for (const mapping of ISP_MAPPINGS) {
+    // Check for exact match in aliases
+    if (mapping.aliases.includes(normalized)) {
+      return mapping.canonical;
+    }
+    // Check for partial match as fallback
+    if (mapping.aliases.some(alias => normalized.includes(alias))) {
+      return mapping.canonical;
+    }
+  }
+  
+  // Return the original name with proper casing if no mapping found
   return ispName.trim();
 }
 

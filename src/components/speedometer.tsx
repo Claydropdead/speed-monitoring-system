@@ -32,6 +32,7 @@ interface SpeedometerProps {
   onTestStart?: () => void;
   officeId: string;
   selectedISP?: string;
+  selectedSection?: string; // Add section prop
 }
 
 interface TestProgress {
@@ -48,7 +49,8 @@ export default function Speedometer({
   onError, 
   onTestStart, 
   officeId, 
-  selectedISP
+  selectedISP,
+  selectedSection
 }: SpeedometerProps) {
   const [progress, setProgress] = useState<TestProgress>({
     stage: 'connecting',
@@ -79,7 +81,7 @@ export default function Speedometer({
     setIspValidationError(null);
 
     try {
-      console.log('🔍 Speedometer: Pre-validating ISP before starting speed test');
+      console.log('Speedometer: Pre-validating ISP before starting speed test');
       setProgress({
         stage: 'connecting',
         download: 0,
@@ -110,7 +112,7 @@ export default function Speedometer({
       }      // Use strict ISP validation - ISP must match before proceeding
       const validation = validateISPMatch(selectedISP!, detectedISP, false); // relaxed mode = false (strict)
       
-      console.log(`🔍 ISP Validation Result:`, validation);
+      console.log(`ISP Validation Result:`, validation);
 
       // Only proceed if ISP matches exactly or partially
       if (!validation.isMatch) {
@@ -160,7 +162,7 @@ Please select the correct ISP that matches your actual connection.`;
     
     onTestStartRef.current?.();
 
-    const eventSource = new EventSource(`/api/speedtest/live?officeId=${officeId}${selectedISP ? `&selectedISP=${encodeURIComponent(selectedISP)}` : ''}`);
+    const eventSource = new EventSource(`/api/speedtest/live?officeId=${officeId}${selectedISP ? `&selectedISP=${encodeURIComponent(selectedISP)}` : ''}${selectedSection ? `&selectedSection=${encodeURIComponent(selectedSection)}` : ''}`);
     setEventSourceRef(eventSource);
       eventSource.onmessage = (event) => {
       try {

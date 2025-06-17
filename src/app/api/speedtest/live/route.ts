@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { spawn } from 'child_process';
 import { validateISPMatch } from '@/lib/speedtest';
+import { normalizeISPName } from '@/lib/isp-utils';
 
 // Track active speedtest requests
 const activeRequests = new Set<string>();
@@ -28,12 +29,12 @@ export async function GET(request: NextRequest) {
   if (!session) {
     console.log(`❌ [${requestId}] Unauthorized request - no session`);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  const { searchParams } = new URL(request.url);
+  }  const { searchParams } = new URL(request.url);
   const officeId = searchParams.get('officeId');
   const selectedISP = searchParams.get('selectedISP');
+  const selectedSection = searchParams.get('selectedSection');
   
-  console.log(`🏢 [${requestId}] Office ID: ${officeId}, Selected ISP: ${selectedISP}, User: ${session.user?.email}, Role: ${session.user?.role}`);
+  console.log(`[${requestId}] Office ID: ${officeId}, Selected ISP: ${selectedISP}, Selected Section: ${selectedSection}`);
   
   // Check permissions
   if (session.user?.role !== 'ADMIN' && session.user?.officeId !== officeId) {
@@ -146,7 +147,7 @@ export async function GET(request: NextRequest) {
           if (trimmedLine.startsWith('{')) {
             try {
               const result = JSON.parse(trimmedLine);
-              console.log(`🔍 [${requestId}] Parsed JSON result type: ${result.type || 'unknown'}`);
+              console.log(`[${requestId}] Parsed JSON result type: ${result.type || 'unknown'}`);
               
               // Handle error messages from speedtest
               if (result.error) {
@@ -161,7 +162,7 @@ export async function GET(request: NextRequest) {
               }              // Handle different types of progress updates with precise progress tracking
               if (result.type === 'testStart') {
                 console.log(`🎬 [${requestId}] Test started - sending initial progress`);
-                console.log(`🔍 [${requestId}] Full testStart result:`, JSON.stringify(result, null, 2));
+
                 safeEnqueue(`data: ${JSON.stringify({
                   type: 'progress',
                   stage: 'connecting',
@@ -231,7 +232,7 @@ export async function GET(request: NextRequest) {
                 safeEnqueue(`data: ${JSON.stringify(uploadData)}\n\n`);
               }else if (result.type === 'result') {
                 // Final results - ensure test completion
-                console.log(`🔍 [${requestId}] Full final result object:`, JSON.stringify(result, null, 2));
+
                 console.log(`🌐 [${requestId}] ISP from result:`, result.isp);
                 console.log(`🌐 [${requestId}] Interface from result:`, result.interface);
                 
@@ -252,7 +253,7 @@ export async function GET(request: NextRequest) {
                 let ispValidation;
                 if (selectedISP) {
                   ispValidation = validateISPMatch(selectedISP, detectedISP);
-                  console.log(`🔍 [${requestId}] ISP Validation: Selected="${selectedISP}", Detected="${detectedISP}", Match=${ispValidation?.isMatch}`);
+
                 }
                 
                 const finalResult = {
@@ -309,7 +310,33 @@ export async function GET(request: NextRequest) {
                     });                    if (!office) {
                       console.error(`❌ [${requestId}] Office not found for ID: ${officeId}`);
                       return;
-                    }                    const speedTest = await prisma.speedTest.create({
+                    }                    // Determine which ISP name to save - include section for unique tracking
+                    let ispToSave: string;
+                    if (selectedISP && selectedSection) {
+                      // Create section-specific ISP identifier for unique tracking
+                      ispToSave = `${normalizeISPName(selectedISP)} (${selectedSection})`;
+                      console.log(`🏷️ [${requestId}] Using selected ISP with section: "${selectedISP}" (${selectedSection}) -> "${ispToSave}"`);
+                    } else if (selectedISP) {
+                      // User selected ISP but no section specified - use normalized ISP only
+                      ispToSave = normalizeISPName(selectedISP);
+                      console.log(`🏷️ [${requestId}] Using selected ISP: "${selectedISP}" -> normalized: "${ispToSave}"`);
+                    } else {
+                      // No specific ISP selected - use detected ISP from speedtest
+                      ispToSave = normalizeISPName(finalResult.ispName || office.isp);
+                      console.log(`[${requestId}] Using detected ISP: "${finalResult.ispName || office.isp}" -> normalized: "${ispToSave}"`);
+                    }// Create enhanced rawData that includes section information
+                    const enhancedRawData = {
+                      ...result,
+                      section: selectedSection || 'General', // Include section information
+                      selectedISP: selectedISP, // Include originally selected ISP
+                      testMetadata: {
+                        requestId: requestId,
+                        timestamp: new Date().toISOString(),
+                        testDuration: testDuration
+                      }
+                    };
+
+                    const speedTest = await prisma.speedTest.create({
                       data: {
                         officeId: officeId!,
                         download: finalResult.download,
@@ -317,14 +344,14 @@ export async function GET(request: NextRequest) {
                         ping: finalResult.ping,
                         jitter: finalResult.jitter,
                         packetLoss: finalResult.packetLoss,
-                        isp: selectedISP || finalResult.ispName || office.isp, // Use selected ISP first, then detected ISP, then fallback to office ISP
+                        isp: ispToSave, // Use normalized ISP name for consistent tracking
                         serverId: finalResult.serverId,
                         serverName: finalResult.serverName,
-                        rawData: finalResult.rawData,
+                        rawData: JSON.stringify(enhancedRawData), // Use enhanced raw data with section info
                       } as any,
                     });
                     console.log(`💾 [${requestId}] Speed test saved to database: ${speedTest.id}`);
-                    console.log(`🌐 [${requestId}] Saved ISP: ${selectedISP || finalResult.ispName || office.isp}`);
+                    console.log(`🌐 [${requestId}] Saved ISP: ${ispToSave}, Section: ${selectedSection || 'General'}`);
                   } catch (dbError) {
                     console.error(`❌ [${requestId}] Failed to save speed test to database:`, dbError);
                   }
@@ -382,7 +409,7 @@ export async function GET(request: NextRequest) {
         console.log(`🔚 [${requestId}] Speedtest process closed with code ${code} after ${testDuration}ms`);
         
         if (code === 0 && !isTestComplete) {
-          console.log(`📋 [${requestId}] Process completed successfully but no final result received, parsing output`);
+          console.log(`[${requestId}] Process completed successfully but no final result received, parsing output`);
           try {
             // Parse the final complete JSON result
             const jsonMatch = fullOutput.match(/\{[\s\S]*\}/);

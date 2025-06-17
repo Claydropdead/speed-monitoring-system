@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('🔍 API: Starting ISP detection');
+    console.log('API: Starting ISP detection');
     
     // Run quick ISP detection
     const detectedISP = await detectCurrentISP();

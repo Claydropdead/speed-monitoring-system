@@ -29,9 +29,10 @@ model Office {
   unitOffice    String      // Main unit office name
   subUnitOffice String?     // Sub-unit office name (null for main unit offices)
   location      String
-  section       String?     // Section name
+  section       String?     // Section name (optional)
   isp           String      // Primary/default ISP (legacy field)
   isps          String?     // JSON array of all ISPs available at this office
+  sectionISPs   String?     // JSON object mapping sections to their specific ISPs
   description   String?
   parentId      String?     // Reference to parent unit office
   parent        Office?     @relation("OfficeHierarchy", fields: [parentId], references: [id])
