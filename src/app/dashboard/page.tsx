@@ -8,7 +8,6 @@ import {
   Upload, 
   Clock, 
   TrendingUp, 
-  Zap, 
   AlertCircle,
   Calendar
 } from 'lucide-react';
@@ -51,7 +50,6 @@ export default function Dashboard() {
   const { data: session } = useSession();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentTests, setRecentTests] = useState<SpeedTest[]>([]);
-  const [isRunningTest, setIsRunningTest] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -84,37 +82,7 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error fetching recent tests:', error);
-    }
-  };
-
-  const runSpeedTest = async () => {
-    if (!session?.user?.officeId) return;
-
-    setIsRunningTest(true);
-    try {
-      const response = await fetch('/api/speedtest', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          officeId: session.user.officeId,
-          runTest: true,
-        }),
-      });
-
-      if (response.ok) {
-        await fetchDashboardData();
-        await fetchRecentTests();
-      } else {
-        console.error('Failed to run speed test');
-      }
-    } catch (error) {
-      console.error('Error running speed test:', error);
-    } finally {
-      setIsRunningTest(false);
-    }
-  };
+    }  };
 
   if (loading) {
     return (
@@ -131,8 +99,7 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        {/* Header with Run Test Button */}
+      <div className="space-y-8">        {/* Header */}
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Speed Test Dashboard</h2>
@@ -140,14 +107,6 @@ export default function Dashboard() {
               Monitor your office internet performance
             </p>
           </div>
-          <button
-            onClick={runSpeedTest}
-            disabled={isRunningTest}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Zap className="h-4 w-4" />
-            {isRunningTest ? 'Running Test...' : 'Run Speed Test'}
-          </button>
         </div>
 
         {/* Stats Cards */}

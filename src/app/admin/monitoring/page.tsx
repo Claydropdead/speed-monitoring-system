@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '../../../components/dashboard-layout';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, Clock, AlertTriangle, Calendar, TrendingUp, Filter, X } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertTriangle, Calendar, TrendingUp, Filter, X, RefreshCw, Search, BarChart3, Activity, Wifi, WifiOff, Signal } from 'lucide-react';
 
 // Unit and SubUnit mapping for filtering
 const UNIT_SUBUNIT_MAPPING = {
@@ -291,34 +291,41 @@ export default function MonitoringPage() {
       className: 'text-green-600',
     };
   };
-
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center min-h-96">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading monitoring data...</p>
+            <div className="relative">
+              <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+              <div className="absolute inset-0 w-20 h-20 border-4 border-transparent border-t-blue-400 rounded-full animate-spin mx-auto" style={{ animationDirection: 'reverse', animationDuration: '1s' }}></div>
+            </div>
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading Monitoring Data</h3>
+              <p className="text-gray-600">Fetching speed test compliance information...</p>
+            </div>
           </div>
         </div>
       </DashboardLayout>
     );
   }
-
   if (error) {
     return (
       <DashboardLayout>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <div className="flex">
-            <XCircle className="h-5 w-5 text-red-400" />
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error Loading Data</h3>
-              <div className="mt-2 text-sm text-red-700">{error}</div>
+        <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-2xl border border-red-200 p-8 max-w-md w-full mx-4">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <XCircle className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-red-800 mb-2">Error Loading Data</h3>
+              <p className="text-red-600 mb-6 text-sm">{error}</p>
               <button
                 onClick={fetchMonitoringData}
-                className="mt-3 bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700"
+                className="w-full flex items-center justify-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors duration-200"
               >
-                Retry
+                <RefreshCw className="h-4 w-4" />
+                Try Again
               </button>
             </div>
           </div>
@@ -326,78 +333,109 @@ export default function MonitoringPage() {
       </DashboardLayout>
     );
   }
-
   if (!monitoringData) {
-    return <DashboardLayout><div>No data available</div></DashboardLayout>;
-  }
-
-  return (
-    <DashboardLayout>
-      <div className="space-y-6">        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Daily Speed Test Monitoring</h1>
-            <p className="text-gray-600 mt-1">
-              Monitor office compliance with required daily speed tests (3x per day)
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
-            >
-              <Filter className="h-4 w-4" />
-              Filters
-              {(selectedUnit || selectedSubUnit) && (
-                <span className="ml-1 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
-                  {selectedUnit ? (selectedSubUnit ? '2' : '1') : '0'}
-                </span>
-              )}
-            </button>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-500" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+    return (
+      <DashboardLayout>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-24 h-24 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Activity className="h-12 w-12 text-gray-500" />
             </div>
-            <button
-              onClick={fetchMonitoringData}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
-            >
-              Refresh
-            </button>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Data Available</h3>
+            <p className="text-gray-600">Unable to load monitoring information at this time.</p>
           </div>
         </div>
+      </DashboardLayout>
+    );
+  }  return (
+    <DashboardLayout>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
+        <div className="space-y-8 p-6">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg">
+            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <Activity className="h-8 w-8" />
+                  <h1 className="text-3xl font-bold">Daily Speed Test Monitoring</h1>
+                </div>
+                <p className="text-blue-100 text-lg">
+                  Monitor office compliance with required daily speed tests (3x per day)
+                </p>
+                <div className="flex items-center gap-4 mt-3 text-sm text-blue-100">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    <span>Last updated: {format(new Date(), 'h:mm a')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    <span>Today: {format(new Date(), 'MMMM dd, yyyy')}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-sm hover:bg-white/20 transition-all duration-200"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filters
+                  {(selectedUnit || selectedSubUnit) && (
+                    <span className="ml-1 px-2 py-0.5 bg-yellow-400 text-yellow-900 text-xs rounded-full font-medium">
+                      {selectedUnit ? (selectedSubUnit ? '2' : '1') : '0'}
+                    </span>
+                  )}
+                </button>
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg px-3 py-2">
+                  <Calendar className="h-4 w-4" />
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="bg-transparent text-white placeholder-blue-100 border-none text-sm focus:outline-none focus:ring-0"
+                  />
+                </div>                <button
+                  onClick={fetchMonitoringData}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-4 py-2 bg-white text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-50 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  {loading ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+            </div>
+          </div>
 
-        {/* Filter Panel */}
+          {/* Filter Panel */}
         {showFilters && (
-          <div className="card">
-            <div className="card-header">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden animate-fade-in">
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">Filters</h3>
+                <div className="flex items-center gap-3">
+                  <Search className="h-5 w-5 text-gray-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Advanced Filters</h3>
+                </div>
                 <button
                   onClick={() => setShowFilters(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-200 rounded-full"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
-            <div className="card-content">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
                     Unit
                   </label>
                   <select
                     value={selectedUnit}
                     onChange={(e) => handleUnitChange(e.target.value as UnitType | '')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={loading}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all duration-200 bg-white"
                   >
-                    <option value="">All Units</option>
+                    <option value="">🏢 All Units</option>
                     {Object.keys(UNIT_SUBUNIT_MAPPING).map((unit) => (
                       <option key={unit} value={unit}>
                         {unit}
@@ -405,17 +443,17 @@ export default function MonitoringPage() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
                     Sub Unit
                   </label>
                   <select
                     value={selectedSubUnit}
                     onChange={(e) => setSelectedSubUnit(e.target.value)}
-                    disabled={!selectedUnit}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={!selectedUnit || loading}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all duration-200 bg-white"
                   >
-                    <option value="">All Sub Units</option>
+                    <option value="">🏬 All Sub Units</option>
                     {availableSubUnits.map((subUnit) => (
                       <option key={subUnit} value={subUnit}>
                         {subUnit}
@@ -426,241 +464,275 @@ export default function MonitoringPage() {
                 <div className="flex items-end">
                   <button
                     onClick={clearFilters}
-                    disabled={!selectedUnit && !selectedSubUnit}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={(!selectedUnit && !selectedSubUnit) || loading}
+                    className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:text-gray-900 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
                   >
-                    Clear Filters
+                    🗑️ Clear Filters
                   </button>
                 </div>
               </div>
               {(selectedUnit || selectedSubUnit) && (
-                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    <strong>Active Filters:</strong>
-                    {selectedUnit && ` Unit: ${selectedUnit}`}
-                    {selectedSubUnit && `, Sub Unit: ${selectedSubUnit}`}
-                  </p>
+                <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                  <div className="flex items-start gap-3">
+                    <Filter className="h-5 w-5 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-blue-900 mb-1">Active Filters</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedUnit && (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            Unit: {selectedUnit}
+                          </span>
+                        )}
+                        {selectedSubUnit && (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                            Sub Unit: {selectedSubUnit}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-        )}
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-          <div className="card">
-            <div className="card-content">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <TrendingUp className="h-8 w-8 text-blue-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">Overall Compliance</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {monitoringData.summary.overallCompliancePercentage}%
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card-content">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <CheckCircle className="h-8 w-8 text-green-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">Fully Compliant</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {monitoringData.summary.fullyCompliantOffices}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card-content">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <AlertTriangle className="h-8 w-8 text-yellow-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">Partial Compliance</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {monitoringData.summary.partiallyCompliantOffices}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card-content">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <XCircle className="h-8 w-8 text-red-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">Non-Compliant</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {monitoringData.summary.nonCompliantOffices}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card-content">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <Clock className="h-8 w-8 text-gray-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">Total Offices</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {monitoringData.summary.totalOffices}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+          </div>        )}
 
         {/* Time Slot Information */}
-        <div className="card">
-          <div className="card-header">
-            <h3 className="text-lg font-medium">Required Testing Windows</h3>
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <Clock className="h-6 w-6 text-gray-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Required Testing Windows</h3>
+            </div>
           </div>
-          <div className="card-content">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h4 className="font-medium text-blue-900">Morning</h4>
-                <p className="text-sm text-blue-700">{monitoringData.timeSlots.morning.window}</p>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="relative">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200 hover:shadow-md transition-shadow duration-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                      <Activity className="h-5 w-5 text-white" />
+                    </div>
+                    <h4 className="font-semibold text-blue-900 text-lg">Morning</h4>
+                  </div>
+                  <p className="text-blue-700 font-medium">{monitoringData.timeSlots.morning.window}</p>
+                  <p className="text-xs text-blue-600 mt-2">Peak business hours</p>
+                </div>
               </div>
-              <div className="bg-green-50 rounded-lg p-4">
-                <h4 className="font-medium text-green-900">Noon</h4>
-                <p className="text-sm text-green-700">{monitoringData.timeSlots.noon.window}</p>
+              <div className="relative">
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200 hover:shadow-md transition-shadow duration-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center">
+                      <Wifi className="h-5 w-5 text-white" />
+                    </div>
+                    <h4 className="font-semibold text-green-900 text-lg">Noon</h4>
+                  </div>
+                  <p className="text-green-700 font-medium">{monitoringData.timeSlots.noon.window}</p>
+                  <p className="text-xs text-green-600 mt-2">Lunch hour check</p>
+                </div>
               </div>
-              <div className="bg-purple-50 rounded-lg p-4">
-                <h4 className="font-medium text-purple-900">Afternoon</h4>
-                <p className="text-sm text-purple-700">{monitoringData.timeSlots.afternoon.window}</p>
+              <div className="relative">
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200 hover:shadow-md transition-shadow duration-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
+                      <Signal className="h-5 w-5 text-white" />
+                    </div>
+                    <h4 className="font-semibold text-purple-900 text-lg">Afternoon</h4>
+                  </div>
+                  <p className="text-purple-700 font-medium">{monitoringData.timeSlots.afternoon.window}</p>
+                  <p className="text-xs text-purple-600 mt-2">End of day validation</p>
+                </div>
               </div>
             </div>
           </div>
         </div>        {/* Office Monitoring Table */}
-        <div className="card">
-          <div className="card-header">
-            <h3 className="text-lg font-medium">Office Compliance Details</h3>
-            <p className="text-sm text-gray-600">
-              Showing test results for {format(new Date(selectedDate), 'MMMM dd, yyyy')}
-            </p>
-          </div>
-          <div className="card-content p-0">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Office
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Overall Compliance
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ISP Details
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {monitoringData.offices.map((officeData) => {
-                    return (
-                      <tr key={officeData.office.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {officeData.office.unitOffice}
-                              {officeData.office.subUnitOffice && (
-                                <span className="text-gray-600 ml-1">- {officeData.office.subUnitOffice}</span>
-                              )}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {officeData.office.location}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            {getComplianceIcon(officeData.compliance.percentage)}
-                            <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${getComplianceColor(officeData.compliance.percentage)}`}>
-                              {officeData.compliance.percentage}% ({officeData.compliance.completedSlots}/{officeData.compliance.totalSlots})
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="space-y-3">
-                            {officeData.ispCompliance.map((ispData) => {
-                              const morningResult = formatTestResult(ispData.tests.morning);
-                              const noonResult = formatTestResult(ispData.tests.noon);
-                              const afternoonResult = formatTestResult(ispData.tests.afternoon);
-
-                              return (
-                                <div key={ispData.isp} className="border rounded-lg p-3 bg-gray-50">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="font-medium text-sm text-gray-900">{ispData.isp}</span>
-                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getComplianceColor(ispData.compliance.percentage)}`}>
-                                      {ispData.compliance.percentage}% ({ispData.compliance.completedSlots}/3)
-                                    </span>
-                                  </div>
-                                  <div className="grid grid-cols-3 gap-2 text-xs">
-                                    <div>
-                                      <div className="font-medium text-gray-700">Morning</div>
-                                      <div className={morningResult.className}>
-                                        {morningResult.display}
-                                      </div>
-                                      {ispData.counts.morning > 1 && (
-                                        <div className="text-gray-500">
-                                          +{ispData.counts.morning - 1} more
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div>
-                                      <div className="font-medium text-gray-700">Noon</div>
-                                      <div className={noonResult.className}>
-                                        {noonResult.display}
-                                      </div>
-                                      {ispData.counts.noon > 1 && (
-                                        <div className="text-gray-500">
-                                          +{ispData.counts.noon - 1} more
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div>
-                                      <div className="font-medium text-gray-700">Afternoon</div>
-                                      <div className={afternoonResult.className}>
-                                        {afternoonResult.display}
-                                      </div>
-                                      {ispData.counts.afternoon > 1 && (
-                                        <div className="text-gray-500">
-                                          +{ispData.counts.afternoon - 1} more
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <BarChart3 className="h-6 w-6 text-gray-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Office Compliance Details</h3>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Showing test results for {format(new Date(selectedDate), 'MMMM dd, yyyy')}
+                  {selectedUnit && ` - Unit: ${selectedUnit}`}
+                  {selectedSubUnit && ` - Sub Unit: ${selectedSubUnit}`}
+                  {monitoringData.offices.length > 0 && (
+                    <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {monitoringData.offices.length} office{monitoringData.offices.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </p>
+              </div>
+              {monitoringData.offices.length === 0 && (selectedUnit || selectedSubUnit) && (
+                <div className="text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded-lg">
+                  No offices found matching the selected filters
+                </div>
+              )}
             </div>
+          </div>          <div className="overflow-hidden">
+            {monitoringData.offices.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                          <Activity className="h-4 w-4" />
+                          Office
+                        </div>
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                          <BarChart3 className="h-4 w-4" />
+                          Overall Compliance
+                        </div>
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                          <Signal className="h-4 w-4" />
+                          ISP Details
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {monitoringData.offices.map((officeData, index) => {
+                      return (
+                        <tr key={officeData.office.id} className={`hover:bg-gray-50 transition-colors duration-150 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <div className="flex-shrink-0">
+                                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                                  <Activity className="h-5 w-5 text-white" />
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-sm font-semibold text-gray-900">
+                                  {officeData.office.unitOffice}
+                                  {officeData.office.subUnitOffice && (
+                                    <span className="text-gray-600 ml-2 font-normal">- {officeData.office.subUnitOffice}</span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-500 flex items-center gap-1">
+                                  <span>📍</span>
+                                  {officeData.office.location}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              {getComplianceIcon(officeData.compliance.percentage)}
+                              <div>
+                                <span className={`inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full ${getComplianceColor(officeData.compliance.percentage)}`}>
+                                  {officeData.compliance.percentage}%
+                                </span>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {officeData.compliance.completedSlots}/{officeData.compliance.totalSlots} slots
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="space-y-4">
+                              {officeData.ispCompliance.map((ispData) => {
+                                const morningResult = formatTestResult(ispData.tests.morning);
+                                const noonResult = formatTestResult(ispData.tests.noon);
+                                const afternoonResult = formatTestResult(ispData.tests.afternoon);
+
+                                return (
+                                  <div key={ispData.isp} className="border border-gray-200 rounded-xl p-4 bg-gradient-to-br from-gray-50 to-white hover:shadow-md transition-shadow duration-200">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex items-center gap-2">
+                                        <Wifi className="h-4 w-4 text-gray-600" />
+                                        <span className="font-semibold text-sm text-gray-900">{ispData.isp}</span>
+                                      </div>
+                                      <span className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full ${getComplianceColor(ispData.compliance.percentage)}`}>
+                                        {ispData.compliance.percentage}% ({ispData.compliance.completedSlots}/3)
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-3 text-xs">
+                                      <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                        <div className="flex items-center gap-1 font-semibold text-blue-800 mb-2">
+                                          <Activity className="h-3 w-3" />
+                                          Morning
+                                        </div>
+                                        <div className={`font-medium ${morningResult.className}`}>
+                                          {morningResult.display}
+                                        </div>
+                                        {ispData.counts.morning > 1 && (
+                                          <div className="text-blue-600 mt-1 text-xs">
+                                            +{ispData.counts.morning - 1} more tests
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                                        <div className="flex items-center gap-1 font-semibold text-green-800 mb-2">
+                                          <Wifi className="h-3 w-3" />
+                                          Noon
+                                        </div>
+                                        <div className={`font-medium ${noonResult.className}`}>
+                                          {noonResult.display}
+                                        </div>
+                                        {ispData.counts.noon > 1 && (
+                                          <div className="text-green-600 mt-1 text-xs">
+                                            +{ispData.counts.noon - 1} more tests
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                                        <div className="flex items-center gap-1 font-semibold text-purple-800 mb-2">
+                                          <Signal className="h-3 w-3" />
+                                          Afternoon
+                                        </div>
+                                        <div className={`font-medium ${afternoonResult.className}`}>
+                                          {afternoonResult.display}
+                                        </div>
+                                        {ispData.counts.afternoon > 1 && (
+                                          <div className="text-purple-600 mt-1 text-xs">
+                                            +{ispData.counts.afternoon - 1} more tests
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-16">
+                <div className="text-gray-500">
+                  <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
+                    <WifiOff className="h-12 w-12 text-gray-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No offices found</h3>
+                  <p className="text-sm max-w-md mx-auto">
+                    {selectedUnit || selectedSubUnit 
+                      ? 'No offices match your current filter criteria. Try adjusting your filters or selecting a different date.'
+                      : 'No offices are available for the selected date. This might be a system configuration issue.'
+                    }
+                  </p>
+                  {(selectedUnit || selectedSubUnit) && (                    <button
+                      onClick={clearFilters}
+                      className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
+                    >
+                      <Filter className="h-4 w-4" />
+                      Clear All Filters
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
+        </div>
         </div>
       </div>
     </DashboardLayout>
