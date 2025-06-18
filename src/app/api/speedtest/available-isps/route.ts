@@ -44,7 +44,13 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session || !session.user?.officeId) {
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Allow admin users to access this endpoint
+    const isAdmin = (session.user as any)?.role === 'ADMIN';
+    if (!isAdmin && !session.user?.officeId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
