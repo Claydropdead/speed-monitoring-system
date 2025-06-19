@@ -4,9 +4,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding development database...');
-
-  // Clean existing data first
+  console.log('🌱 Seeding development database...');  // Clean existing data first
   console.log('🧹 Cleaning existing data...');
   await prisma.speedTest.deleteMany();
   await prisma.testSchedule.deleteMany();

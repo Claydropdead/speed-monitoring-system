@@ -2,6 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { 
   Download, 
@@ -47,14 +48,32 @@ interface SpeedTest {
 }
 
 export default function Dashboard() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentTests, setRecentTests] = useState<SpeedTest[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Redirect admins to admin dashboard
   useEffect(() => {
-    fetchDashboardData();
-    fetchRecentTests();
+    if (status === 'loading') return; // Still loading
+    
+    if (session?.user?.role === 'ADMIN') {
+      router.replace('/admin/dashboard');
+      return;
+    }
+    
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin');
+      return;
+    }
+  }, [session, status, router]);
+
+  useEffect(() => {
+    if (session?.user?.role !== 'ADMIN') {
+      fetchDashboardData();
+      fetchRecentTests();
+    }
   }, [session]);
 
   const fetchDashboardData = async () => {

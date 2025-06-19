@@ -12,7 +12,12 @@ import {
   Trash2,
   Search,
   Filter,
-  Shield
+  Shield,
+  Key,
+  Lock,
+  RefreshCw,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface User {
@@ -34,10 +39,18 @@ export default function AdminUsersPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordModalType, setPasswordModalType] = useState<'reset' | 'change'>('reset');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (session?.user?.role !== 'ADMIN') {
@@ -89,6 +102,106 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleResetPassword = async (user: User) => {
+    setSelectedUser(user);
+    setPasswordModalType('reset');
+    setShowPasswordModal(true);
+    setNewPassword('');
+    setCurrentPassword('');
+    setError(null);
+    setSuccessMessage(null);
+  };
+
+  const handleChangePassword = async (user: User) => {
+    setSelectedUser(user);
+    setPasswordModalType('change');
+    setShowPasswordModal(true);
+    setNewPassword('');
+    setCurrentPassword('');
+    setError(null);
+    setSuccessMessage(null);
+  };
+
+  const executePasswordReset = async () => {
+    if (!selectedUser) return;
+
+    try {
+      setPasswordLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/users?action=reset-password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: selectedUser.id }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccessMessage(`Password reset successfully! New password: ${data.newPassword}`);
+        // Don't close modal immediately so user can copy password
+      } else {
+        setError(data.error || 'Failed to reset password');
+      }
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      setError('Failed to reset password');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const executePasswordChange = async () => {
+    if (!selectedUser || !newPassword) return;
+
+    try {
+      setPasswordLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/users?action=change-password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          userId: selectedUser.id,
+          currentPassword: currentPassword || undefined,
+          newPassword: newPassword
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccessMessage('Password changed successfully!');
+        setTimeout(() => {
+          setShowPasswordModal(false);
+          setSuccessMessage(null);
+        }, 2000);
+      } else {
+        setError(data.error || 'Failed to change password');
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      setError('Failed to change password');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setSelectedUser(null);
+    setNewPassword('');
+    setCurrentPassword('');
+    setShowPassword(false);
+    setShowCurrentPassword(false);
+    setError(null);
+    setSuccessMessage(null);
+  };
+
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -130,6 +243,137 @@ export default function AdminUsersPage() {
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-red-600">{error}</p>
+          </div>
+        )}
+
+        {/* Success Message */}
+        {successMessage && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p className="text-green-600">{successMessage}</p>
+          </div>
+        )}
+
+        {/* Password Management Modal */}
+        {showPasswordModal && selectedUser && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-md w-full p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  {passwordModalType === 'reset' ? 'Reset Password' : 'Change Password'}
+                </h3>
+                <button
+                  onClick={closePasswordModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600">
+                  {passwordModalType === 'reset' 
+                    ? `Reset password for ${selectedUser.name} (${selectedUser.email})`
+                    : `Change password for ${selectedUser.name} (${selectedUser.email})`
+                  }
+                </p>
+              </div>
+
+              {passwordModalType === 'change' && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Password (optional for admin)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                      placeholder="Enter current password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {passwordModalType === 'change' && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                      placeholder="Enter new password (min 6 characters)"
+                      minLength={6}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Password must be at least 6 characters long</p>
+                </div>
+              )}
+
+              {passwordModalType === 'reset' && (
+                <div className="mb-4">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <Lock className="h-5 w-5 text-yellow-600 mr-2" />
+                      <p className="text-sm text-yellow-700">
+                        A new random password will be generated and displayed. Make sure to copy it.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-sm text-green-600">{successMessage}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={closePasswordModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  disabled={passwordLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={passwordModalType === 'reset' ? executePasswordReset : executePasswordChange}
+                  disabled={passwordLoading || (passwordModalType === 'change' && !newPassword)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  {passwordLoading && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  )}
+                  {passwordModalType === 'reset' ? 'Reset Password' : 'Change Password'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -243,17 +487,37 @@ export default function AdminUsersPage() {
                         <Calendar className="h-4 w-4 mr-1" />
                         {new Date(user.createdAt).toLocaleDateString()}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {user.role !== 'ADMIN' && (
+                    </td>                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        {/* Reset Password Button */}
                         <button
-                          onClick={() => handleDeleteUser(user.id)}
-                          className="text-red-400 hover:text-red-600 p-1"
-                          title="Delete User"
+                          onClick={() => handleResetPassword(user)}
+                          className="text-blue-400 hover:text-blue-600 p-1"
+                          title="Reset Password"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <RefreshCw className="h-4 w-4" />
                         </button>
-                      )}
+                        
+                        {/* Change Password Button */}
+                        <button
+                          onClick={() => handleChangePassword(user)}
+                          className="text-green-400 hover:text-green-600 p-1"
+                          title="Change Password"
+                        >
+                          <Key className="h-4 w-4" />
+                        </button>
+                        
+                        {/* Delete Button (only for non-admin users) */}
+                        {user.role !== 'ADMIN' && (
+                          <button
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="text-red-400 hover:text-red-600 p-1"
+                            title="Delete User"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

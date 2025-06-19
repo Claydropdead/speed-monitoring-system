@@ -4,6 +4,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState, useRef } from 'react';
 import {
   Activity,
   BarChart3,
@@ -15,18 +16,34 @@ import {
   Settings,
   Users,
   Zap,
+  Key,
+  ChevronDown,
 } from 'lucide-react';
-import { useState } from 'react';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { data: session, status } = useSession();
+export function DashboardLayout({ children }: DashboardLayoutProps) {const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   if (status === 'loading') {
     return (
@@ -44,18 +61,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     return null;
   }
 
-  const isAdmin = session?.user?.role === 'ADMIN';  const navigation = [
+  const isAdmin = session?.user?.role === 'ADMIN';
+  const navigation = [
     { name: 'Dashboard', href: isAdmin ? '/admin/dashboard' : '/dashboard', icon: BarChart3 },
-    { name: 'Speed Tests', href: isAdmin ? '/admin/speedtests' : '/tests', icon: Zap },
-    ...(isAdmin ? [
-      { name: 'Monitoring', href: '/admin/monitoring', icon: Monitor },
-      { name: 'Offices', href: '/admin/offices', icon: Building },
-      { name: 'Users', href: '/admin/users', icon: Users },
-      { name: 'Reports', href: '/admin/reports', icon: FileText },
-      { name: 'Settings', href: '/admin/settings', icon: Settings },
-    ] : [
-      { name: 'Settings', href: '/settings', icon: Settings },
-    ]),
+    { name: 'Speed Tests', href: isAdmin ? '/admin/speedtests' : '/tests', icon: Zap },    ...(isAdmin
+      ? [
+          { name: 'Monitoring', href: '/admin/monitoring', icon: Monitor },
+          { name: 'Offices', href: '/admin/offices', icon: Building },
+          { name: 'Users', href: '/admin/users', icon: Users },
+          { name: 'Reports', href: '/admin/reports', icon: FileText },
+          { name: 'Settings', href: '/admin/settings', icon: Settings },
+        ]
+      : [{ name: 'Settings', href: '/settings', icon: Settings }]),
   ];
 
   const handleSignOut = () => {
@@ -141,25 +158,55 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             onClick={() => setSidebarOpen(true)}
           >
             <Menu className="h-6 w-6" />
-          </button>          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
+          </button>
+          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1 items-center">
               <h1 className="text-lg font-semibold text-gray-900">
-                {isAdmin ? 'Admin Dashboard' : session?.user?.office ? `${session.user.office.unitOffice}${session.user.office.subUnitOffice ? ` > ${session.user.office.subUnitOffice}` : ''}` : 'Dashboard'}
+                {isAdmin
+                  ? 'Admin Dashboard'
+                  : session?.user?.office
+                  ? `${session.user.office.unitOffice}${
+                      session.user.office.subUnitOffice ? ` > ${session.user.office.subUnitOffice}` : ''
+                    }`
+                  : 'Dashboard'}
               </h1>
-            </div>
-            <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <div className="flex items-center gap-x-3">
-                <div className="text-sm">
-                  <p className="font-medium text-gray-900">{session?.user?.name}</p>
-                  <p className="text-gray-500">{session?.user?.email}</p>
-                </div>
+            </div>            <div className="flex items-center gap-x-4 lg:gap-x-6">
+              {/* User menu */}
+              <div className="relative" ref={userMenuRef}>
                 <button
-                  onClick={handleSignOut}
-                  className="text-gray-400 hover:text-gray-600"
-                  title="Sign out"
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-x-3 text-sm focus:outline-none"
                 >
-                  <LogOut className="h-5 w-5" />
+                  <div className="text-right">
+                    <p className="font-medium text-gray-900">{session?.user?.name}</p>
+                    <p className="text-gray-500">{session?.user?.email}</p>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-gray-400" />
                 </button>
+                {/* Dropdown menu */}
+                {userMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                    {/* Change Password - Smart routing based on role */}
+                    <Link
+                      href={isAdmin ? '/admin/users' : '/settings'}
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <Key className="h-4 w-4 mr-2" />
+                      Change Password
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        handleSignOut();
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -167,9 +214,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Main content */}
         <main className="py-8">
-          <div className="px-4 sm:px-6 lg:px-8">
-            {children}
-          </div>
+          <div className="px-4 sm:px-6 lg:px-8">{children}</div>
         </main>
       </div>
     </div>

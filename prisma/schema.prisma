@@ -20,7 +20,6 @@ model User {
   office    Office?  @relation(fields: [officeId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   @@map("users")
 }
 
