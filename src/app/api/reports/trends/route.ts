@@ -53,9 +53,7 @@ export async function GET(request: NextRequest) {
 
     if ((session.user as any)?.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const { searchParams } = new URL(request.url);
+    }    const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const unit = searchParams.get('unit');
@@ -64,19 +62,15 @@ export async function GET(request: NextRequest) {
     const section = searchParams.get('section');
     const timeOfDay = searchParams.get('timeOfDay');
 
-    console.log('Trends API - Filter params:', {
-      startDate, endDate, unit, subunit, isp, section, timeOfDay
-    });
-
     if (!startDate || !endDate) {
       return NextResponse.json(
         { error: 'Start date and end date are required' },
         { status: 400 }
       );
-    }
+    }    const start = startOfDay(parseISO(startDate));
+    const end = endOfDay(parseISO(endDate));
 
-    const start = startOfDay(parseISO(startDate));
-    const end = endOfDay(parseISO(endDate));    // Build where clause for office filtering
+    // Build where clause for office filtering
     const whereClause: any = {};
     if (unit) {
       whereClause.unitOffice = unit;
@@ -94,18 +88,14 @@ export async function GET(request: NextRequest) {
         gte: start,
         lte: end,
       },
-    };    // Add ISP filter - handle partial matches for ISPs with sections like "PLDT (IT)"
+    };
+
+    // Add ISP filter - handle partial matches for ISPs with sections like "PLDT (IT)"
     if (isp) {
       speedTestWhere.isp = {
         contains: isp
       };
-      console.log('Filtering by ISP (partial match):', isp);
-    }
-
-    console.log('Speed test where clause:', speedTestWhere);
-    console.log('Office where clause:', whereClause);
-
-    // Fetch offices with their speed tests
+    }    // Fetch offices with their speed tests
     const offices = await prisma.office.findMany({
       where: whereClause,
       include: {
@@ -117,28 +107,7 @@ export async function GET(request: NextRequest) {
         },
       },
     });
-
-    console.log('Fetched offices count:', offices.length);
-    console.log('Total speed tests found:', offices.reduce((total, office) => total + office.speedTests.length, 0));
     
-    // Log first few speed tests for debugging
-    if (offices.length > 0 && offices[0].speedTests.length > 0) {
-      console.log('Sample speed test:', {
-        isp: offices[0].speedTests[0].isp,
-        timestamp: offices[0].speedTests[0].timestamp,
-        download: offices[0].speedTests[0].download
-      });
-    }
-
-    // If filtering by ISP, let's check what ISPs are actually in the speed tests
-    if (isp) {
-      const allSpeedTests = offices.flatMap(office => office.speedTests);
-      const uniqueISPs = [...new Set(allSpeedTests.map(test => test.isp))];
-      console.log('All unique ISPs in speed tests:', uniqueISPs);
-      console.log('Requested ISP filter:', isp);
-      console.log('ISP filter matches found:', uniqueISPs.filter(ispName => ispName.toLowerCase().includes(isp.toLowerCase())));
-    }
-
     // Return individual data points with office and ISP details for granular tooltips
     const detailedTrendData: TrendResponse[] = [];
     
@@ -158,13 +127,10 @@ export async function GET(request: NextRequest) {
             hourStart = 13; hourEnd = 18; // 1:00 PM - 6:00 PM
             break;
         }
-        
-        filteredTests = office.speedTests.filter((test: any) => {
+          filteredTests = office.speedTests.filter((test: any) => {
           const testHour = new Date(test.timestamp).getHours();
           return testHour >= hourStart && testHour <= hourEnd;
         });
-        
-        console.log(`Time of day filter '${timeOfDay}' (${hourStart}-${hourEnd}h): ${office.speedTests.length} -> ${filteredTests.length} tests`);
       }
 
       // Group speed tests by date and ISP
@@ -223,22 +189,8 @@ export async function GET(request: NextRequest) {
           }
         });
       });
-    });
-
-    // Sort detailed data by date
+    });    // Sort detailed data by date
     detailedTrendData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    console.log(`Returning ${detailedTrendData.length} trend data points`);
-    
-    // Log sample of returned data for debugging
-    if (detailedTrendData.length > 0) {
-      console.log('Sample trend data point:', {
-        date: detailedTrendData[0].date,
-        office: detailedTrendData[0].office,
-        isp: detailedTrendData[0].isp,
-        avgDownload: detailedTrendData[0].avgDownload
-      });
-    }
 
     return NextResponse.json(detailedTrendData);
   } catch (error) {

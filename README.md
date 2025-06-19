@@ -10,6 +10,36 @@ A comprehensive internet speed monitoring system built with Next.js, TypeScript,
 - **Real-time Analytics**: Dashboard with charts and performance metrics
 - **Ookla Speedtest Integration**: Uses official Speedtest CLI for accurate measurements
 - **Modern UI**: Clean, responsive design with Tailwind CSS
+- **Production Ready**: Clean production setup without demo data
+
+## 🚀 Quick Start
+
+### Development Mode
+```bash
+# Clone and install
+git clone <repository-url>
+cd speed-test-monitoring-system
+npm install
+
+# Setup development database
+npm run db:push && npm run db:generate && npm run db:seed
+
+# Start development server
+npm run dev
+```
+
+**Development Admin:** `admin@speedtest.local` / `admin123`
+
+### Production Deployment
+```bash
+# Setup production environment
+npm run setup:production
+
+# Configure your .env file with production values
+# Then run: npm run db:setup:production
+```
+
+📖 **[Complete Production Setup Guide](./PRODUCTION-SETUP.md)**
 
 ## Tech Stack
 
