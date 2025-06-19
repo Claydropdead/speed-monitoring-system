@@ -18,6 +18,8 @@ import {
   Zap,
   Key,
   ChevronDown,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -30,9 +32,67 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showLogoutWarning, setShowLogoutWarning] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(15 * 60); // Session time in seconds
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+  const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Close user menu when clicking outside
+  // Auto-logout functionality
+  const SESSION_TIMEOUT = 15 * 60; // 15 minutes for production
+  const WARNING_TIME = 14 * 60; // Show warning at 14 minutes
+
+  const clearAllTimers = () => {
+    if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+  };
+
+  const startLogoutWarning = () => {
+    console.log('⚠️ Auto-logout warning triggered - 1 minute remaining');
+    setShowLogoutWarning(true);
+    setTimeRemaining(60); // 1 minute remaining
+
+    // Start countdown timer
+    countdownIntervalRef.current = setInterval(() => {
+      setTimeRemaining((prev) => {
+        const newTime = prev - 1;
+        console.log(`⏰ Countdown: ${newTime} seconds remaining`);
+        
+        if (newTime <= 0) {
+          console.log('🚪 Auto-logout triggered!');
+          clearAllTimers();
+          signOut({ callbackUrl: '/' });
+          return 0;
+        }
+        return newTime;
+      });
+    }, 1000);
+  };
+
+  const resetActivityTimer = () => {
+    console.log('🔄 Auto-logout timer reset - 15 minute session started');
+    
+    // Clear all existing timers
+    clearAllTimers();
+    
+    // Reset state
+    setShowLogoutWarning(false);
+    setTimeRemaining(SESSION_TIMEOUT);
+    lastActivityRef.current = Date.now();
+
+    // Set warning timer (show warning at 14 minutes)
+    warningTimerRef.current = setTimeout(startLogoutWarning, WARNING_TIME * 1000);
+  };
+
+  const extendSession = () => {
+    console.log('🔄 Session extended by user');
+    resetActivityTimer();
+  };
+
+  // Close user menu when clicking outside and activity tracking
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
@@ -41,10 +101,103 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
 
     document.addEventListener('mousedown', handleClickOutside);
+
+    if (status === 'authenticated') {
+      // Initial timer setup
+      resetActivityTimer();
+
+      // Track user activity
+      const activities = ['mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+      
+      const handleActivity = () => {
+        // Check if we're not currently showing the warning
+        if (!showLogoutWarning) {
+          resetActivityTimer();
+        }
+      };
+
+      activities.forEach(activity => {
+        document.addEventListener(activity, handleActivity, true);
+      });
+
+      return () => {
+        // Cleanup timers
+        clearAllTimers();
+
+        // Remove event listeners
+        activities.forEach(activity => {
+          document.removeEventListener(activity, handleActivity, true);
+        });
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [status]);
+
+  const handleSignOut = () => {
+    signOut({ callbackUrl: '/' });
+  };
+
+  // Main effect for activity tracking and session management
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+
+    if (status === 'authenticated') {
+      // Initial timer setup
+      resetActivityTimer();
+
+      // Track user activity
+      const activities = ['mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+      
+      const handleActivity = () => {
+        if (!showLogoutWarning) {
+          console.log('👆 User activity detected - resetting timer');
+          resetActivityTimer();
+        }
+      };
+
+      activities.forEach(activity => {
+        document.addEventListener(activity, handleActivity, true);
+      });
+
+      return () => {
+        // Cleanup timers
+        clearAllTimers();
+
+        // Remove event listeners
+        activities.forEach(activity => {
+          document.removeEventListener(activity, handleActivity, true);
+        });
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [status]);
+
+  // Update session timer display
+  useEffect(() => {
+    if (status === 'authenticated' && !showLogoutWarning) {
+      const updateInterval = setInterval(() => {
+        const elapsed = (Date.now() - lastActivityRef.current) / 1000;
+        const remaining = Math.max(0, SESSION_TIMEOUT - elapsed);
+        setTimeRemaining(Math.floor(remaining));
+      }, 5000); // Update every 5 seconds for 15-minute session
+
+      return () => clearInterval(updateInterval);
+    }
+  }, [status, showLogoutWarning]);
 
   if (status === 'loading') {
     return (
@@ -76,10 +229,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         ]
       : [{ name: 'Settings', href: '/settings', icon: Settings }]),
   ];
-
-  const handleSignOut = () => {
-    signOut({ callbackUrl: '/' });
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -181,8 +330,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       }`
                     : 'Dashboard'}
               </h1>
-            </div>{' '}
+            </div>
+
             <div className="flex items-center gap-x-4 lg:gap-x-6">
+              {/* Session Timer Indicator */}
+              {status === 'authenticated' && !showLogoutWarning && (
+                <div className="hidden sm:flex items-center text-xs text-gray-500">
+                  <Clock className="h-3 w-3 mr-1" />
+                  <span>
+                    Session: {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+                  </span>
+                </div>
+              )}
+              
               {/* User menu */}
               <div className="relative" ref={userMenuRef}>
                 <button
@@ -229,6 +389,46 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="px-4 sm:px-6 lg:px-8">{children}</div>
         </main>
       </div>
+
+      {/* Auto-logout warning modal */}
+      {showLogoutWarning && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-md w-full">
+            <div className="flex items-center mb-4">
+              <AlertTriangle className="h-6 w-6 text-yellow-500 mr-3" />
+              <h3 className="text-lg font-medium text-gray-900">Session Timeout Warning</h3>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-600 mb-4">
+                Your session will expire due to inactivity. You will be automatically logged out in:
+              </p>
+              
+              <div className="flex items-center justify-center bg-red-50 rounded-lg p-4">
+                <Clock className="h-5 w-5 text-red-500 mr-2" />
+                <span className="text-2xl font-bold text-red-600">
+                  {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={extendSession}
+                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
+              >
+                Stay Logged In
+              </button>
+              <button
+                onClick={() => signOut({ callbackUrl: '/' })}
+                className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 font-medium"
+              >
+                Logout Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
