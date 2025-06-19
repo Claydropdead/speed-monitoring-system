@@ -36,8 +36,8 @@ interface SpeedTestResult {
 }
 
 interface AvailableISPs {
-  available: Array<{isp: string, section: string}>;
-  tested: Array<{isp: string, section: string}>;
+  available: Array<{ isp: string; section: string }>;
+  tested: Array<{ isp: string; section: string }>;
   currentTimeSlot: string | null;
   timeSlotInfo: {
     morning: string;
@@ -59,7 +59,10 @@ export default function Tests() {
   const [showISPSelector, setShowISPSelector] = useState(false);
   const [loadingISPs, setLoadingISPs] = useState(false);
   const [showISPMismatchModal, setShowISPMismatchModal] = useState(false);
-  const [mismatchData, setMismatchData] = useState<{selectedISP: string, detectedISP: string} | null>(null);
+  const [mismatchData, setMismatchData] = useState<{
+    selectedISP: string;
+    detectedISP: string;
+  } | null>(null);
   const restartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -69,7 +72,7 @@ export default function Tests() {
 
   const fetchAvailableISPs = async () => {
     if (!session?.user?.officeId) return;
-    
+
     setLoadingISPs(true);
     try {
       const response = await fetch('/api/speedtest/available-isps');
@@ -98,9 +101,9 @@ export default function Tests() {
       if (session.user.role !== 'ADMIN' && session.user.officeId) {
         params.append('officeId', session.user.officeId);
       }
-      
+
       const response = await fetch(`/api/speedtest?${params}`);
-      
+
       if (response.ok) {
         const data = await response.json();
         setTests(data.tests || []);
@@ -115,18 +118,26 @@ export default function Tests() {
 
   const runSpeedTest = async () => {
     if (!session?.user?.officeId) return;
-    
+
     // Check available ISPs first
     await fetchAvailableISPs();
-    
+
     if (!availableISPs?.currentTimeSlot) {
-      alert('Testing is only allowed during designated time slots:\n- Morning: 6:00 AM - 11:59 AM\n- Noon: 12:00 PM - 12:59 PM\n- Afternoon: 1:00 PM - 6:00 PM');
+      alert(
+        'Testing is only allowed during designated time slots:\n- Morning: 6:00 AM - 11:59 AM\n- Noon: 12:00 PM - 12:59 PM\n- Afternoon: 1:00 PM - 6:00 PM'
+      );
       return;
-    }    if (availableISPs.available.length === 0) {
-      const testedISPNames = availableISPs.tested.map(item => `${item.isp} (${item.section})`).join(', ');
-      alert(`All ISPs have been tested in the current time slot (${availableISPs.currentTimeSlot}).\n\nTested ISPs: ${testedISPNames}\n\nPlease wait for the next time slot to continue testing.`);
+    }
+    if (availableISPs.available.length === 0) {
+      const testedISPNames = availableISPs.tested
+        .map(item => `${item.isp} (${item.section})`)
+        .join(', ');
+      alert(
+        `All ISPs have been tested in the current time slot (${availableISPs.currentTimeSlot}).\n\nTested ISPs: ${testedISPNames}\n\nPlease wait for the next time slot to continue testing.`
+      );
       return;
-    }    if (availableISPs.available.length === 1) {
+    }
+    if (availableISPs.available.length === 1) {
       // Only one ISP available, select it automatically
       const selectedItem = availableISPs.available[0];
       setSelectedISP(selectedItem.isp);
@@ -149,11 +160,12 @@ export default function Tests() {
     // Refresh the tests list and available ISPs to show the new result
     fetchTests();
     fetchAvailableISPs();
-  };  const handleSpeedTestClose = () => {
+  };
+  const handleSpeedTestClose = () => {
     setShowSpeedometer(false);
     setSelectedISP('');
     setSelectedSection(''); // Clear section selection
-    
+
     // Clear any pending restart timeouts
     if (restartTimeoutRef.current) {
       clearTimeout(restartTimeoutRef.current);
@@ -163,12 +175,12 @@ export default function Tests() {
 
   const handleSpeedTestError = (error: string, errorData?: any) => {
     console.error('Speed test error:', error, errorData);
-    
+
     if (errorData?.type === 'isp_mismatch') {
       // ISP mismatch - show custom modal with better options
       setMismatchData({
         selectedISP: errorData.selectedISP,
-        detectedISP: errorData.detectedISP
+        detectedISP: errorData.detectedISP,
       });
       setShowISPMismatchModal(true);
     } else {
@@ -180,35 +192,38 @@ export default function Tests() {
   };
 
   const handleISPMismatchOK = () => {
-    if (mismatchData && availableISPs) {        // Use proper ISP normalization to check if detected ISP matches any available ISP
-        const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
-        const matchingISP = availableISPs.available.find((item) => {
-          const availableNormalized = normalizeISPName(item.isp);
-          return detectedNormalized === availableNormalized;
-        });
+    if (mismatchData && availableISPs) {
+      // Use proper ISP normalization to check if detected ISP matches any available ISP
+      const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
+      const matchingISP = availableISPs.available.find(item => {
+        const availableNormalized = normalizeISPName(item.isp);
+        return detectedNormalized === availableNormalized;
+      });
 
-        if (matchingISP) {
-          // Clear any existing timeout first
-          if (restartTimeoutRef.current) {
-            clearTimeout(restartTimeoutRef.current);
-          }
-          
-          // Close the mismatch modal
-          setShowISPMismatchModal(false);
-          setMismatchData(null);
-          
-          // Close speedometer first to ensure clean state
-          setShowSpeedometer(false);
-          // Wait a moment for cleanup, then restart with new ISP
-          restartTimeoutRef.current = setTimeout(() => {
-            setSelectedISP(matchingISP.isp);
-            setSelectedSection(matchingISP.section); // Set the correct section
-            setShowSpeedometer(true);
-            restartTimeoutRef.current = null;
-          }, 300); // Slightly longer delay for better cleanup
+      if (matchingISP) {
+        // Clear any existing timeout first
+        if (restartTimeoutRef.current) {
+          clearTimeout(restartTimeoutRef.current);
+        }
+
+        // Close the mismatch modal
+        setShowISPMismatchModal(false);
+        setMismatchData(null);
+
+        // Close speedometer first to ensure clean state
+        setShowSpeedometer(false);
+        // Wait a moment for cleanup, then restart with new ISP
+        restartTimeoutRef.current = setTimeout(() => {
+          setSelectedISP(matchingISP.isp);
+          setSelectedSection(matchingISP.section); // Set the correct section
+          setShowSpeedometer(true);
+          restartTimeoutRef.current = null;
+        }, 300); // Slightly longer delay for better cleanup
       } else {
         // Detected ISP not in office list - show manual selection
-        alert(`The detected ISP "${mismatchData.detectedISP}" is not configured for your office. Please select from available ISPs.`);
+        alert(
+          `The detected ISP "${mismatchData.detectedISP}" is not configured for your office. Please select from available ISPs.`
+        );
         setShowISPMismatchModal(false);
         setShowSpeedometer(false);
         setSelectedISP('');
@@ -247,10 +262,9 @@ export default function Tests() {
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Speed Tests</h2>
             <p className="text-gray-600 mt-1">
-              {session?.user?.role === 'ADMIN' 
+              {session?.user?.role === 'ADMIN'
                 ? 'All speed test results across offices'
-                : 'Your office speed test history'
-              }
+                : 'Your office speed test history'}
             </p>
           </div>
           {session?.user?.officeId && (
@@ -269,14 +283,22 @@ export default function Tests() {
         {availableISPs && session?.user?.officeId && (
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Today's Testing Status</h3>
-            
+
             {availableISPs.currentTimeSlot ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="font-medium">Current Time Slot: {availableISPs.currentTimeSlot}</span>
+                  <span className="font-medium">
+                    Current Time Slot: {availableISPs.currentTimeSlot}
+                  </span>
                   <span className="text-sm text-gray-600">
-                    ({availableISPs.timeSlotInfo[availableISPs.currentTimeSlot.toLowerCase() as keyof typeof availableISPs.timeSlotInfo]})
+                    (
+                    {
+                      availableISPs.timeSlotInfo[
+                        availableISPs.currentTimeSlot.toLowerCase() as keyof typeof availableISPs.timeSlotInfo
+                      ]
+                    }
+                    )
                   </span>
                 </div>
 
@@ -287,9 +309,13 @@ export default function Tests() {
                       <CheckCircle className="h-4 w-4" />
                       Available for Testing ({availableISPs.available.length})
                     </h4>
-                    {availableISPs.available.length > 0 ? (                      <ul className="space-y-1">
+                    {availableISPs.available.length > 0 ? (
+                      <ul className="space-y-1">
                         {availableISPs.available.map((item, index) => (
-                          <li key={`${item.isp}-${item.section}-${index}`} className="text-sm bg-green-50 text-green-800 px-2 py-1 rounded flex justify-between items-center">
+                          <li
+                            key={`${item.isp}-${item.section}-${index}`}
+                            className="text-sm bg-green-50 text-green-800 px-2 py-1 rounded flex justify-between items-center"
+                          >
                             <span className="font-medium">{item.isp}</span>
                             <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                               {item.section}
@@ -311,7 +337,10 @@ export default function Tests() {
                     {availableISPs.tested.length > 0 ? (
                       <ul className="space-y-1">
                         {availableISPs.tested.map((item, index) => (
-                          <li key={`${item.isp}-${item.section}-${index}`} className="text-sm bg-blue-50 text-blue-800 px-2 py-1 rounded flex justify-between items-center">
+                          <li
+                            key={`${item.isp}-${item.section}-${index}`}
+                            className="text-sm bg-blue-50 text-blue-800 px-2 py-1 rounded flex justify-between items-center"
+                          >
                             <span className="font-medium">{item.isp}</span>
                             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                               {item.section}
@@ -338,7 +367,7 @@ export default function Tests() {
             )}
           </div>
         )}
-        
+
         {/* Tests Table */}
         <div className="card">
           <div className="card-content p-0">
@@ -386,46 +415,49 @@ export default function Tests() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {Array.isArray(tests) && tests.map((test) => (
-                      <tr key={test.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {format(new Date(test.timestamp), 'MMM dd, yyyy h:mm a')}
-                        </td>
-                        {session?.user?.role === 'ADMIN' && (
+                    {Array.isArray(tests) &&
+                      tests.map(test => (
+                        <tr key={test.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <div>
-                              <div className="font-medium">
-                                {test.office.unitOffice}
-                                {test.office.subUnitOffice && (
-                                  <span className="text-gray-600 ml-1">- {test.office.subUnitOffice}</span>
-                                )}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {test.office.location}
-                              </div>
-                            </div>
+                            {format(new Date(test.timestamp), 'MMM dd, yyyy h:mm a')}
                           </td>
-                        )}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`font-medium ${getSpeedColor(test.download, 'download')}`}>
-                            {test.download} Mbps
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`font-medium ${getSpeedColor(test.upload, 'upload')}`}>
-                            {test.upload} Mbps
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`font-medium ${getPingColor(test.ping)}`}>
-                            {test.ping} ms
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {test.isp}
-                        </td>
-                      </tr>
-                    ))}
+                          {session?.user?.role === 'ADMIN' && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <div>
+                                <div className="font-medium">
+                                  {test.office.unitOffice}
+                                  {test.office.subUnitOffice && (
+                                    <span className="text-gray-600 ml-1">
+                                      - {test.office.subUnitOffice}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-gray-500">{test.office.location}</div>
+                              </div>
+                            </td>
+                          )}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span
+                              className={`font-medium ${getSpeedColor(test.download, 'download')}`}
+                            >
+                              {test.download} Mbps
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-medium ${getSpeedColor(test.upload, 'upload')}`}>
+                              {test.upload} Mbps
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-medium ${getPingColor(test.ping)}`}>
+                              {test.ping} ms
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {test.isp}
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -440,7 +472,7 @@ export default function Tests() {
             )}
           </div>
         </div>
-        
+
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex justify-center gap-2">
@@ -466,7 +498,8 @@ export default function Tests() {
       </div>
 
       {/* Speed Test Modal */}
-      {session?.user?.officeId && (        <SpeedTestModal
+      {session?.user?.officeId && (
+        <SpeedTestModal
           isOpen={showSpeedometer}
           onClose={handleSpeedTestClose}
           officeId={session.user.officeId}
@@ -484,19 +517,23 @@ export default function Tests() {
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">ISP Mismatch Detected!</h3>
               <div className="space-y-2 text-sm text-gray-600">
-                <p><span className="font-medium">You selected:</span> {mismatchData.selectedISP}</p>
-                <p><span className="font-medium">We detected:</span> {mismatchData.detectedISP}</p>
+                <p>
+                  <span className="font-medium">You selected:</span> {mismatchData.selectedISP}
+                </p>
+                <p>
+                  <span className="font-medium">We detected:</span> {mismatchData.detectedISP}
+                </p>
               </div>
             </div>
-            
+
             {(() => {
               // Check if detected ISP is available in office ISPs using proper normalization
               if (!availableISPs) return null;
-                const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
-              const matchingISP = availableISPs.available.find((item) => 
-                normalizeISPName(item.isp) === detectedNormalized
+              const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
+              const matchingISP = availableISPs.available.find(
+                item => normalizeISPName(item.isp) === detectedNormalized
               );
-              
+
               if (matchingISP) {
                 // ISP is available - show positive message
                 return (
@@ -504,9 +541,13 @@ export default function Tests() {
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-green-600 text-lg">✅</span>
                       <span className="font-medium text-green-700">ISP Match Found!</span>
-                    </div>                    <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-3">
+                    </div>{' '}
+                    <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-3">
                       <p className="text-sm text-green-800">
-                        <span className="font-medium">"{matchingISP.isp} ({matchingISP.section})"</span> is available in your office ISP list.
+                        <span className="font-medium">
+                          "{matchingISP.isp} ({matchingISP.section})"
+                        </span>{' '}
+                        is available in your office ISP list.
                       </p>
                       <p className="text-xs text-green-600 mt-1">
                         Detected: "{mismatchData.detectedISP}" → Matches: "{matchingISP.isp}"
@@ -514,7 +555,12 @@ export default function Tests() {
                     </div>
                     <p className="text-sm text-gray-700">Would you like to:</p>
                     <div className="mt-2 space-y-1 text-sm text-gray-600">
-                      <p>1. Proceed with <span className="font-medium">{matchingISP.isp} ({matchingISP.section})</span></p>
+                      <p>
+                        1. Proceed with{' '}
+                        <span className="font-medium">
+                          {matchingISP.isp} ({matchingISP.section})
+                        </span>
+                      </p>
                       <p>2. Cancel and select a different ISP</p>
                     </div>
                   </div>
@@ -529,11 +575,19 @@ export default function Tests() {
                     </div>
                     <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-3">
                       <p className="text-sm text-yellow-800">
-                        <span className="font-medium">"{mismatchData.detectedISP}"</span> is not configured for your office.
+                        <span className="font-medium">"{mismatchData.detectedISP}"</span> is not
+                        configured for your office.
                       </p>
                     </div>
-                    <p className="text-sm text-gray-700">Available ISPs: {availableISPs.available.map(item => `${item.isp} (${item.section})`).join(', ')}</p>
-                    <p className="text-sm text-gray-600 mt-2">Please select a different ISP manually.</p>
+                    <p className="text-sm text-gray-700">
+                      Available ISPs:{' '}
+                      {availableISPs.available
+                        .map(item => `${item.isp} (${item.section})`)
+                        .join(', ')}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-2">
+                      Please select a different ISP manually.
+                    </p>
                   </div>
                 );
               }
@@ -542,7 +596,7 @@ export default function Tests() {
             <p className="text-xs text-gray-500 mb-4">
               Click OK to proceed, Cancel to select different ISP
             </p>
-            
+
             <div className="flex gap-3 justify-end">
               <button
                 onClick={handleISPMismatchCancel}
@@ -556,12 +610,14 @@ export default function Tests() {
               >
                 {(() => {
                   if (!availableISPs) return 'OK';
-                    const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
-                  const matchingISP = availableISPs.available.find((item) => 
-                    normalizeISPName(item.isp) === detectedNormalized
+                  const detectedNormalized = normalizeISPName(mismatchData.detectedISP);
+                  const matchingISP = availableISPs.available.find(
+                    item => normalizeISPName(item.isp) === detectedNormalized
                   );
-                  
-                  return matchingISP ? `Proceed with ${matchingISP.isp} (${matchingISP.section})` : 'OK';
+
+                  return matchingISP
+                    ? `Proceed with ${matchingISP.isp} (${matchingISP.section})`
+                    : 'OK';
                 })()}
               </button>
             </div>
@@ -575,8 +631,10 @@ export default function Tests() {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Select ISP to Test</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Choose which ISP you want to test in the current time slot ({availableISPs.currentTimeSlot}).
-            </p>            <div className="space-y-2">
+              Choose which ISP you want to test in the current time slot (
+              {availableISPs.currentTimeSlot}).
+            </p>{' '}
+            <div className="space-y-2">
               {availableISPs.available.map((item, index) => (
                 <button
                   key={`${item.isp}-${item.section}-${index}`}
@@ -589,7 +647,9 @@ export default function Tests() {
                       {item.section}
                     </span>
                   </div>
-                  <div className="text-sm text-gray-500">Available for testing in {item.section} section</div>
+                  <div className="text-sm text-gray-500">
+                    Available for testing in {item.section} section
+                  </div>
                 </button>
               ))}
             </div>

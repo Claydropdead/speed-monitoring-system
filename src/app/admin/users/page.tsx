@@ -4,7 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '../../../components/dashboard-layout';
-import { 
+import {
   Users,
   Building,
   Mail,
@@ -17,7 +17,7 @@ import {
   Lock,
   RefreshCw,
   Eye,
-  EyeOff
+  EyeOff,
 } from 'lucide-react';
 
 interface User {
@@ -39,7 +39,8 @@ export default function AdminUsersPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -165,10 +166,10 @@ export default function AdminUsersPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           userId: selectedUser.id,
           currentPassword: currentPassword || undefined,
-          newPassword: newPassword
+          newPassword: newPassword,
         }),
       });
 
@@ -203,10 +204,11 @@ export default function AdminUsersPage() {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.office?.unitOffice.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.office?.subUnitOffice?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch =
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.office?.unitOffice.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.office?.subUnitOffice?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     return matchesSearch && matchesRole;
   });
@@ -261,20 +263,16 @@ export default function AdminUsersPage() {
                 <h3 className="text-lg font-medium text-gray-900">
                   {passwordModalType === 'reset' ? 'Reset Password' : 'Change Password'}
                 </h3>
-                <button
-                  onClick={closePasswordModal}
-                  className="text-gray-400 hover:text-gray-600"
-                >
+                <button onClick={closePasswordModal} className="text-gray-400 hover:text-gray-600">
                   ×
                 </button>
               </div>
 
               <div className="mb-4">
                 <p className="text-sm text-gray-600">
-                  {passwordModalType === 'reset' 
+                  {passwordModalType === 'reset'
                     ? `Reset password for ${selectedUser.name} (${selectedUser.email})`
-                    : `Change password for ${selectedUser.name} (${selectedUser.email})`
-                  }
+                    : `Change password for ${selectedUser.name} (${selectedUser.email})`}
                 </p>
               </div>
 
@@ -287,7 +285,7 @@ export default function AdminUsersPage() {
                     <input
                       type={showCurrentPassword ? 'text' : 'password'}
                       value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      onChange={e => setCurrentPassword(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
                       placeholder="Enter current password"
                     />
@@ -296,7 +294,11 @@ export default function AdminUsersPage() {
                       onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showCurrentPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -311,7 +313,7 @@ export default function AdminUsersPage() {
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
+                      onChange={e => setNewPassword(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
                       placeholder="Enter new password (min 6 characters)"
                       minLength={6}
@@ -325,7 +327,9 @@ export default function AdminUsersPage() {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Password must be at least 6 characters long</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Password must be at least 6 characters long
+                  </p>
                 </div>
               )}
 
@@ -363,7 +367,9 @@ export default function AdminUsersPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={passwordModalType === 'reset' ? executePasswordReset : executePasswordChange}
+                  onClick={
+                    passwordModalType === 'reset' ? executePasswordReset : executePasswordChange
+                  }
                   disabled={passwordLoading || (passwordModalType === 'change' && !newPassword)}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
@@ -387,7 +393,7 @@ export default function AdminUsersPage() {
                   type="text"
                   placeholder="Search users..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={e => setSearchTerm(e.target.value)}
                   className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -397,7 +403,7 @@ export default function AdminUsersPage() {
                 <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <select
                   value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
+                  onChange={e => setRoleFilter(e.target.value)}
                   className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="all">All Roles</option>
@@ -412,11 +418,9 @@ export default function AdminUsersPage() {
         {/* Users Table */}
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">
-              Users ({filteredUsers.length})
-            </h3>
+            <h3 className="text-lg font-medium text-gray-900">Users ({filteredUsers.length})</h3>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -439,7 +443,7 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredUsers.map((user) => (
+                {filteredUsers.map(user => (
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -458,11 +462,14 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {user.office ? (
                         <div className="flex items-center">
-                          <Building className="h-4 w-4 text-gray-400 mr-2" />                          <div>
+                          <Building className="h-4 w-4 text-gray-400 mr-2" />{' '}
+                          <div>
                             <div className="text-sm font-medium text-gray-900">
                               {user.office.unitOffice}
                               {user.office.subUnitOffice && (
-                                <span className="text-gray-600 ml-1">- {user.office.subUnitOffice}</span>
+                                <span className="text-gray-600 ml-1">
+                                  - {user.office.subUnitOffice}
+                                </span>
                               )}
                             </div>
                             <div className="text-sm text-gray-500">{user.office.location}</div>
@@ -473,11 +480,13 @@ export default function AdminUsersPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        user.role === 'ADMIN' 
-                          ? 'bg-purple-100 text-purple-800' 
-                          : 'bg-blue-100 text-blue-800'
-                      }`}>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          user.role === 'ADMIN'
+                            ? 'bg-purple-100 text-purple-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}
+                      >
                         <Shield className="h-3 w-3 mr-1" />
                         {user.role}
                       </span>
@@ -487,7 +496,8 @@ export default function AdminUsersPage() {
                         <Calendar className="h-4 w-4 mr-1" />
                         {new Date(user.createdAt).toLocaleDateString()}
                       </div>
-                    </td>                    <td className="px-6 py-4 whitespace-nowrap">
+                    </td>{' '}
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
                         {/* Reset Password Button */}
                         <button
@@ -497,7 +507,7 @@ export default function AdminUsersPage() {
                         >
                           <RefreshCw className="h-4 w-4" />
                         </button>
-                        
+
                         {/* Change Password Button */}
                         <button
                           onClick={() => handleChangePassword(user)}
@@ -506,7 +516,7 @@ export default function AdminUsersPage() {
                         >
                           <Key className="h-4 w-4" />
                         </button>
-                        
+
                         {/* Delete Button (only for non-admin users) */}
                         {user.role !== 'ADMIN' && (
                           <button
@@ -546,7 +556,7 @@ export default function AdminUsersPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white shadow rounded-lg p-6">
             <div className="flex items-center">
               <div className="p-2 bg-purple-100 rounded-lg">
@@ -560,7 +570,7 @@ export default function AdminUsersPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white shadow rounded-lg p-6">
             <div className="flex items-center">
               <div className="p-2 bg-green-100 rounded-lg">

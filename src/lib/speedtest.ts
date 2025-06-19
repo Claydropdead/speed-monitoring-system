@@ -44,7 +44,8 @@ export interface SpeedTestResult {
     location: string;
     country: string;
     ip: string;
-  };  result: {
+  };
+  result: {
     id: string;
     url: string;
     persisted: boolean;
@@ -78,19 +79,22 @@ export type ProgressCallback = (progress: SpeedTestProgress) => void;
 // Convert bits per second to Mbps using web-compatible conversion
 const bitsToMbps = (bits: number): number => {
   // Use Method 3 (Web×8) which matches web interface results
-  return Math.round((bits / 1000000 * 8) * 100) / 100;
+  return Math.round((bits / 1000000) * 8 * 100) / 100;
 };
 
 // Helper function to try speedtest with different configurations
-async function trySpeedtestWithRetry(onProgress: ProgressCallback, attempt: number = 1): Promise<SpeedTestData> {
+async function trySpeedtestWithRetry(
+  onProgress: ProgressCallback,
+  attempt: number = 1
+): Promise<SpeedTestData> {
   const maxAttempts = 5; // Increased attempts for better success rate
-  
+
   if (attempt > maxAttempts) {
     throw new Error('All speedtest attempts failed');
   }
 
   console.log(`🔄 Speedtest attempt ${attempt}/${maxAttempts}`);
-  
+
   // Progressive fallback configurations with different strategies
   const configurations = [
     // Attempt 1: Default auto-server selection
@@ -102,30 +106,29 @@ async function trySpeedtestWithRetry(onProgress: ProgressCallback, attempt: numb
     // Attempt 4: Minimal test with basic output
     ['--format=json', '--accept-license', '--accept-gdpr', '--no-pre-allocate'],
     // Attempt 5: Last resort with different timeout
-    ['--format=json', '--accept-license', '--accept-gdpr', '--no-upload']
+    ['--format=json', '--accept-license', '--accept-gdpr', '--no-upload'],
   ];
 
   const args = configurations[attempt - 1];
-  
   // Add delay between attempts to avoid rate limiting
   if (attempt > 1) {
     console.log(`⏳ Waiting ${attempt * 2} seconds before retry...`);
     await new Promise(resolve => setTimeout(resolve, attempt * 2000));
   }
-  
+
   return new Promise((resolve, reject) => {
     let output = '';
     let errorOutput = '';
     let progressTimer: NodeJS.Timeout;
 
     console.log(`🚀 Attempt ${attempt} - Starting speedtest with args:`, args);
-    
+
     // Update progress during retry attempts
     onProgress({
       phase: 'connecting',
       progress: (attempt - 1) * 20, // Show incremental progress across attempts
     });
-    
+
     const speedtest = spawn('speedtest', args, {
       shell: true,
       timeout: 60000, // Reduced timeout per attempt
@@ -139,7 +142,7 @@ async function trySpeedtestWithRetry(onProgress: ProgressCallback, attempt: numb
       });
     }, 5000);
 
-    speedtest.stdout.on('data', (data) => {
+    speedtest.stdout.on('data', data => {
       output += data.toString();
       // Look for progress indicators in the output
       const outputStr = data.toString();
@@ -156,29 +159,29 @@ async function trySpeedtestWithRetry(onProgress: ProgressCallback, attempt: numb
       }
     });
 
-    speedtest.stderr.on('data', (data) => {
+    speedtest.stderr.on('data', data => {
       errorOutput += data.toString();
       const errorStr = data.toString();
       console.error(`Attempt ${attempt} stderr:`, errorStr);
-      
+
       // Check for specific protocol errors early
       if (errorStr.includes('Protocol error') || errorStr.includes('Did not receive HELLO')) {
         console.log(`🚨 Detected protocol error on attempt ${attempt}, will retry...`);
       }
     });
 
-    speedtest.on('close', async (code) => {
+    speedtest.on('close', async code => {
       clearTimeout(progressTimer);
-      
+
       if (code === 0 && output.trim()) {
         try {
           const jsonData = JSON.parse(output.trim());
-          
+
           // Validate that we have the essential data
           if (!jsonData.download || !jsonData.upload || !jsonData.ping) {
             throw new Error('Incomplete speedtest data received');
           }
-          
+
           const result: SpeedTestData = {
             download: bitsToMbps(jsonData.download.bandwidth),
             upload: bitsToMbps(jsonData.upload.bandwidth),
@@ -192,13 +195,13 @@ async function trySpeedtestWithRetry(onProgress: ProgressCallback, attempt: numb
             resultUrl: jsonData.result?.url,
             rawData: JSON.stringify(jsonData),
           };
-          
+
           console.log(`✅ Attempt ${attempt} succeeded!`);
           resolve(result);
         } catch (e) {
           console.error(`Attempt ${attempt} parse error:`, e);
           console.error('Raw output:', output.substring(0, 500) + '...');
-          
+
           if (attempt < maxAttempts) {
             console.log(`🔄 Parse failed, retrying with different configuration...`);
             try {
@@ -214,12 +217,13 @@ async function trySpeedtestWithRetry(onProgress: ProgressCallback, attempt: numb
       } else {
         console.error(`Attempt ${attempt} failed with code:`, code);
         console.error(`Attempt ${attempt} error output:`, errorOutput);
-        
+
         // Check for specific error types and provide better handling
-        const isProtocolError = errorOutput.includes('Protocol error') || 
-                               errorOutput.includes('Did not receive HELLO') ||
-                               errorOutput.includes('Connection failed');
-        
+        const isProtocolError =
+          errorOutput.includes('Protocol error') ||
+          errorOutput.includes('Did not receive HELLO') ||
+          errorOutput.includes('Connection failed');
+
         if (attempt < maxAttempts) {
           const reason = isProtocolError ? 'protocol error' : `exit code ${code}`;
           console.log(`🔄 Retrying due to ${reason}...`);
@@ -230,7 +234,7 @@ async function trySpeedtestWithRetry(onProgress: ProgressCallback, attempt: numb
             reject(retryError);
           }
         } else {
-          const errorMsg = isProtocolError 
+          const errorMsg = isProtocolError
             ? 'Network connectivity issues prevented speed test completion. This may be due to firewall restrictions, network instability, or temporary server issues.'
             : `Speedtest failed after ${maxAttempts} attempts. Last error: ${errorOutput}`;
           reject(new Error(errorMsg));
@@ -238,10 +242,10 @@ async function trySpeedtestWithRetry(onProgress: ProgressCallback, attempt: numb
       }
     });
 
-    speedtest.on('error', async (error) => {
+    speedtest.on('error', async error => {
       clearTimeout(progressTimer);
       console.error(`Attempt ${attempt} process error:`, error);
-      
+
       if (attempt < maxAttempts) {
         console.log(`🔄 Retrying due to process error...`);
         try {
@@ -251,43 +255,47 @@ async function trySpeedtestWithRetry(onProgress: ProgressCallback, attempt: numb
           reject(retryError);
         }
       } else {
-        reject(new Error(`Speedtest process failed after ${maxAttempts} attempts: ${error.message}`));
+        reject(
+          new Error(`Speedtest process failed after ${maxAttempts} attempts: ${error.message}`)
+        );
       }
     });
   });
 }
 
 // Run speed test with real-time progress updates using actual Ookla CLI
-export async function runSpeedTestWithProgress(onProgress: ProgressCallback, selectedISP?: string): Promise<SpeedTestData & { ispValidation?: any }> {
+export async function runSpeedTestWithProgress(
+  onProgress: ProgressCallback,
+  selectedISP?: string
+): Promise<SpeedTestData & { ispValidation?: any }> {
   try {
     // First, try the enhanced retry mechanism
     const result = await trySpeedtestWithRetry(onProgress, 1);
-      // Validate ISP if selectedISP is provided
+    // Validate ISP if selectedISP is provided
     let ispValidation;
     if (selectedISP && result.ispName) {
       ispValidation = validateISPMatch(selectedISP, result.ispName);
     }
-    
+
     onProgress({
       phase: 'complete',
       progress: 100,
     });
-    
+
     return {
       ...result,
       ispValidation,
     };
-    
   } catch (error) {
     console.error('All speedtest attempts failed:', error);
-    
+
     // Provide a helpful error message and mock data for development
     onProgress({
       phase: 'error',
       progress: 0,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
     });
-    
+
     // Generate realistic mock data with error context
     const mockResult: SpeedTestData = {
       download: 25.5 + Math.random() * 10,
@@ -300,11 +308,11 @@ export async function runSpeedTestWithProgress(onProgress: ProgressCallback, sel
       serverName: 'Mock Test Server (Speedtest CLI Failed)',
       serverLocation: 'Mock Location',
       resultUrl: 'https://www.speedtest.net/result/mock-test',
-      rawData: JSON.stringify({ 
-        mock: true, 
+      rawData: JSON.stringify({
+        mock: true,
         error: error instanceof Error ? error.message : String(error),
         timestamp: new Date().toISOString(),
-        note: 'This is mock data due to speedtest CLI failure'
+        note: 'This is mock data due to speedtest CLI failure',
       }),
     };
 
@@ -315,41 +323,43 @@ export async function runSpeedTestWithProgress(onProgress: ProgressCallback, sel
         progress: 100,
       });
     }, 1000);
-    
+
     return mockResult;
   }
 }
 
-export async function runSpeedTest(selectedISP?: string): Promise<SpeedTestData & { ispValidation?: any }> {
+export async function runSpeedTest(
+  selectedISP?: string
+): Promise<SpeedTestData & { ispValidation?: any }> {
   try {
     // Use the enhanced retry mechanism with a simple progress callback
     const result = await trySpeedtestWithRetry(() => {}, 1);
-    
+
     // Validate ISP if selectedISP is provided
     let ispValidation;
     if (selectedISP && result.ispName) {
       ispValidation = validateISPMatch(selectedISP, result.ispName);
     }
-    
+
     // Log Ookla shareable URL
     if (result.resultUrl) {
       console.log(`🔗 Ookla Result URL: ${result.resultUrl}`);
     }
-    
+
     return {
       ...result,
       ispValidation, // Include validation results
     };
   } catch (error) {
     console.error('Speedtest failed, using mock data:', error);
-    
+
     // Return mock data for development/testing purposes
     const mockDownload = Math.round((Math.random() * 100 + 50) * 100) / 100;
     const mockUpload = Math.round((Math.random() * 50 + 25) * 100) / 100;
     const mockPing = Math.round((Math.random() * 50 + 10) * 100) / 100;
     const mockJitter = Math.round((Math.random() * 10 + 1) * 100) / 100;
     const mockPacketLoss = Math.round(Math.random() * 2 * 100) / 100;
-    
+
     const mockResult = {
       download: mockDownload,
       upload: mockUpload,
@@ -361,13 +371,13 @@ export async function runSpeedTest(selectedISP?: string): Promise<SpeedTestData 
       serverName: 'Mock Test Server',
       serverLocation: 'Mock Location',
       resultUrl: 'https://www.speedtest.net/result/mock-test',
-      rawData: JSON.stringify({ 
+      rawData: JSON.stringify({
         error: 'Mock data for development',
         originalError: error instanceof Error ? error.message : String(error),
         timestamp: new Date().toISOString(),
       }),
     };
-    
+
     return mockResult;
   }
 }
@@ -379,7 +389,8 @@ export function validateSpeedTestData(data: any): data is SpeedTestData {
     typeof data.ping === 'number' &&
     data.download >= 0 &&
     data.upload >= 0 &&
-    data.ping >= 0  );
+    data.ping >= 0
+  );
 }
 
 // Re-export ISP utilities for backward compatibility
@@ -389,19 +400,21 @@ export { normalizeISPName, validateISPMatch } from './isp-utils';
 export async function detectCurrentISP(): Promise<string> {
   try {
     console.log('Quick ISP detection starting...');
-    
+
     // Method 1: Try to get ISP info from public IP services
     const ipServices = [
       'https://ipapi.co/json/',
       'https://api.ipify.org?format=json',
-      'https://httpbin.org/ip'
+      'https://httpbin.org/ip',
     ];
-    
+
     for (const service of ipServices) {
       try {
-        const { stdout: ipInfo } = await execAsync(`curl -s "${service}" --connect-timeout 10 --max-time 15`);
+        const { stdout: ipInfo } = await execAsync(
+          `curl -s "${service}" --connect-timeout 10 --max-time 15`
+        );
         const ipData = JSON.parse(ipInfo);
-        
+
         if (ipData.org) {
           console.log(`🌐 Detected ISP via ${service}: ${ipData.org}`);
           return ipData.org;
@@ -414,17 +427,20 @@ export async function detectCurrentISP(): Promise<string> {
         continue;
       }
     }
-    
+
     // Method 2: Use speedtest with minimal flags to just get connection info
     try {
-      const { stdout } = await execAsync('speedtest --format=json --accept-license --accept-gdpr --selection-details', {
-        timeout: 30000 // 30 second timeout for ISP detection
-      });
+      const { stdout } = await execAsync(
+        'speedtest --format=json --accept-license --accept-gdpr --selection-details',
+        {
+          timeout: 30000, // 30 second timeout for ISP detection
+        }
+      );
       const result = JSON.parse(stdout);
-      
+
       // Extract ISP from various possible locations in the result
       let detectedISP = 'Unknown ISP';
-      
+
       if (result.client?.isp) {
         detectedISP = result.client.isp;
       } else if (result.interface?.externalIsp) {
@@ -432,13 +448,13 @@ export async function detectCurrentISP(): Promise<string> {
       } else if (result.isp) {
         detectedISP = result.isp;
       }
-      
+
       console.log(`🌐 Detected ISP via speedtest: ${detectedISP}`);
       return detectedISP;
     } catch (speedtestError) {
       console.log('Speedtest ISP detection failed, trying fallback method...');
     }
-    
+
     // Method 3: Fallback to a simple speedtest with retry
     try {
       const result = await trySpeedtestWithRetry(() => {}, 1);
@@ -449,11 +465,10 @@ export async function detectCurrentISP(): Promise<string> {
     } catch (fallbackError) {
       console.log('Fallback speedtest ISP detection also failed');
     }
-    
   } catch (error) {
     console.error('All ISP detection methods failed:', error);
   }
-  
+
   // Final fallback: Return a generic message that will trigger user selection
   return 'Unknown ISP - Please select manually';
 }

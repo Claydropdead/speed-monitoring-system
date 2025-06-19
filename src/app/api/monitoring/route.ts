@@ -6,8 +6,8 @@ import { TimeSlot } from '@prisma/client';
 
 // Helper function to get time slot for a given hour
 function getTimeSlotForHour(hour: number): TimeSlot | null {
-  if (hour >= 6 && hour <= 11) return TimeSlot.MORNING;    // 6:00 AM - 11:59 AM
-  if (hour === 12) return TimeSlot.NOON;                   // 12:00 PM - 12:59 PM
+  if (hour >= 6 && hour <= 11) return TimeSlot.MORNING; // 6:00 AM - 11:59 AM
+  if (hour === 12) return TimeSlot.NOON; // 12:00 PM - 12:59 PM
   if (hour >= 13 && hour <= 18) return TimeSlot.AFTERNOON; // 1:00 PM - 6:00 PM
   return null;
 }
@@ -22,15 +22,16 @@ function isWithinTimeSlot(timestamp: Date, timeSlot: TimeSlot): boolean {
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session || session.user?.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }    const { searchParams } = new URL(request.url);
+    }
+    const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get('date');
     const unitFilter = searchParams.get('unit');
     const subunitFilter = searchParams.get('subunit');
     const targetDate = dateParam ? new Date(dateParam) : new Date();
-    
+
     // Set to start and end of the target date
     const startOfDay = new Date(targetDate);
     startOfDay.setHours(0, 0, 0, 0);
@@ -39,11 +40,11 @@ export async function GET(request: NextRequest) {
 
     // Build the where clause for office filtering
     const officeWhereClause: any = {};
-    
+
     if (unitFilter) {
       officeWhereClause.unitOffice = unitFilter;
     }
-    
+
     if (subunitFilter) {
       officeWhereClause.subUnitOffice = subunitFilter;
     }
@@ -111,17 +112,17 @@ export async function GET(request: NextRequest) {
       orderBy: {
         timestamp: 'desc',
       },
-    });// Process monitoring data for each office
-    const monitoringData = offices.map((office) => {
+    }); // Process monitoring data for each office
+    const monitoringData = offices.map(office => {
       const officeTests = speedTests.filter(test => test.officeId === office.id);
-      let officeIsps: string[] = [];      // Safely parse ISPs and create section-specific ISP identifiers
-      let allISPs: Array<{isp: string, section: string}> = [];
-      
+      let officeIsps: string[] = []; // Safely parse ISPs and create section-specific ISP identifiers
+      let allISPs: Array<{ isp: string; section: string }> = [];
+
       try {
         // Add general ISPs with proper double JSON handling
         if (office.isps) {
           let generalISPs = JSON.parse(office.isps);
-          
+
           // Handle case where JSON is double-encoded as string
           if (typeof generalISPs === 'string') {
             try {
@@ -131,7 +132,7 @@ export async function GET(request: NextRequest) {
               generalISPs = [generalISPs];
             }
           }
-          
+
           if (Array.isArray(generalISPs)) {
             generalISPs.forEach(isp => {
               if (isp && isp.trim()) {
@@ -144,7 +145,7 @@ export async function GET(request: NextRequest) {
         } else if (office.isp) {
           allISPs.push({ isp: office.isp, section: 'General' });
         }
-        
+
         // Add section-specific ISPs
         if (office.sectionISPs) {
           const sectionISPs = JSON.parse(office.sectionISPs);
@@ -160,27 +161,28 @@ export async function GET(request: NextRequest) {
             });
           }
         }
-        
+
         // Ensure we have at least one ISP
         if (allISPs.length === 0 && office.isp) {
           allISPs.push({ isp: office.isp, section: 'General' });
         }
-        
       } catch (error) {
         console.warn(`Failed to parse ISPs for office ${office.id} (${office.unitOffice}):`, error);
-        allISPs = office.isp ? [{ isp: office.isp, section: 'General' }] : [{ isp: 'Unknown ISP', section: 'General' }];
+        allISPs = office.isp
+          ? [{ isp: office.isp, section: 'General' }]
+          : [{ isp: 'Unknown ISP', section: 'General' }];
       }
-        // Create compliance data per ISP-section combination
-      const ispCompliance = allISPs.map((ispItem) => {
+      // Create compliance data per ISP-section combination
+      const ispCompliance = allISPs.map(ispItem => {
         // Create section-specific ISP identifier for matching against stored tests
         const ispIdentifier = `${ispItem.isp} (${ispItem.section})`;
-        
+
         // Filter tests for this specific ISP-section combination
         const ispTests = officeTests.filter(test => {
           // Check if the stored ISP already includes section info
           const storedISP = test.isp;
           const sectionMatch = storedISP.match(/^(.+?)\s*\((.+?)\)$/);
-          
+
           if (sectionMatch) {
             // ISP has section info: "Globe (IT)" -> compare with "Globe (IT)"
             return storedISP === ispIdentifier;
@@ -189,11 +191,15 @@ export async function GET(request: NextRequest) {
             return ispItem.section === 'General' && storedISP === ispItem.isp;
           }
         });
-        
+
         // Categorize tests by time slot for this ISP
-        const morningTests = ispTests.filter(test => isWithinTimeSlot(test.timestamp, TimeSlot.MORNING));
+        const morningTests = ispTests.filter(test =>
+          isWithinTimeSlot(test.timestamp, TimeSlot.MORNING)
+        );
         const noonTests = ispTests.filter(test => isWithinTimeSlot(test.timestamp, TimeSlot.NOON));
-        const afternoonTests = ispTests.filter(test => isWithinTimeSlot(test.timestamp, TimeSlot.AFTERNOON));
+        const afternoonTests = ispTests.filter(test =>
+          isWithinTimeSlot(test.timestamp, TimeSlot.AFTERNOON)
+        );
 
         // Get the latest test for each time slot
         const latestMorning = morningTests[0] || null;
@@ -202,7 +208,8 @@ export async function GET(request: NextRequest) {
 
         // Calculate compliance for this ISP
         const completedSlots = [latestMorning, latestNoon, latestAfternoon].filter(Boolean).length;
-        const compliancePercentage = Math.round((completedSlots / 3) * 100);        return {
+        const compliancePercentage = Math.round((completedSlots / 3) * 100);
+        return {
           isp: `${ispItem.isp} (${ispItem.section})`, // Display ISP with section
           compliance: {
             percentage: compliancePercentage,
@@ -210,30 +217,36 @@ export async function GET(request: NextRequest) {
             totalSlots: 3,
           },
           tests: {
-            morning: latestMorning ? {
-              id: latestMorning.id,
-              timestamp: latestMorning.timestamp,
-              download: latestMorning.download,
-              upload: latestMorning.upload,
-              ping: latestMorning.ping,
-              isp: latestMorning.isp,
-            } : null,
-            noon: latestNoon ? {
-              id: latestNoon.id,
-              timestamp: latestNoon.timestamp,
-              download: latestNoon.download,
-              upload: latestNoon.upload,
-              ping: latestNoon.ping,
-              isp: latestNoon.isp,
-            } : null,
-            afternoon: latestAfternoon ? {
-              id: latestAfternoon.id,
-              timestamp: latestAfternoon.timestamp,
-              download: latestAfternoon.download,
-              upload: latestAfternoon.upload,
-              ping: latestAfternoon.ping,
-              isp: latestAfternoon.isp,
-            } : null,
+            morning: latestMorning
+              ? {
+                  id: latestMorning.id,
+                  timestamp: latestMorning.timestamp,
+                  download: latestMorning.download,
+                  upload: latestMorning.upload,
+                  ping: latestMorning.ping,
+                  isp: latestMorning.isp,
+                }
+              : null,
+            noon: latestNoon
+              ? {
+                  id: latestNoon.id,
+                  timestamp: latestNoon.timestamp,
+                  download: latestNoon.download,
+                  upload: latestNoon.upload,
+                  ping: latestNoon.ping,
+                  isp: latestNoon.isp,
+                }
+              : null,
+            afternoon: latestAfternoon
+              ? {
+                  id: latestAfternoon.id,
+                  timestamp: latestAfternoon.timestamp,
+                  download: latestAfternoon.download,
+                  upload: latestAfternoon.upload,
+                  ping: latestAfternoon.ping,
+                  isp: latestAfternoon.isp,
+                }
+              : null,
           },
           counts: {
             morning: morningTests.length,
@@ -242,12 +255,14 @@ export async function GET(request: NextRequest) {
             total: ispTests.length,
           },
         };
-      });      // Calculate overall office compliance (average across all ISPs)
+      }); // Calculate overall office compliance (average across all ISPs)
       const totalRequiredSlots = allISPs.length * 3; // 3 slots per ISP-section combination
-      const totalCompletedSlots = ispCompliance.reduce((sum, isp) => sum + isp.compliance.completedSlots, 0);
-      const overallCompliancePercentage = totalRequiredSlots > 0 
-        ? Math.round((totalCompletedSlots / totalRequiredSlots) * 100) 
-        : 0;
+      const totalCompletedSlots = ispCompliance.reduce(
+        (sum, isp) => sum + isp.compliance.completedSlots,
+        0
+      );
+      const overallCompliancePercentage =
+        totalRequiredSlots > 0 ? Math.round((totalCompletedSlots / totalRequiredSlots) * 100) : 0;
 
       return {
         office: {
@@ -272,13 +287,22 @@ export async function GET(request: NextRequest) {
 
     // Calculate overall statistics
     const totalOffices = offices.length;
-    const fullyCompliantOffices = monitoringData.filter(data => data.compliance.percentage === 100).length;
-    const partiallyCompliantOffices = monitoringData.filter(data => data.compliance.percentage > 0 && data.compliance.percentage < 100).length;
-    const nonCompliantOffices = monitoringData.filter(data => data.compliance.percentage === 0).length;
-    
-    const overallCompliancePercentage = totalOffices > 0 
-      ? Math.round((monitoringData.reduce((sum, data) => sum + data.compliance.percentage, 0) / totalOffices))
-      : 0;
+    const fullyCompliantOffices = monitoringData.filter(
+      data => data.compliance.percentage === 100
+    ).length;
+    const partiallyCompliantOffices = monitoringData.filter(
+      data => data.compliance.percentage > 0 && data.compliance.percentage < 100
+    ).length;
+    const nonCompliantOffices = monitoringData.filter(
+      data => data.compliance.percentage === 0
+    ).length;
+
+    const overallCompliancePercentage =
+      totalOffices > 0
+        ? Math.round(
+            monitoringData.reduce((sum, data) => sum + data.compliance.percentage, 0) / totalOffices
+          )
+        : 0;
 
     return NextResponse.json({
       date: targetDate.toISOString().split('T')[0],

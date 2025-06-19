@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { 
+import {
   Building,
   Users,
   Activity,
@@ -16,7 +16,7 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
-  Monitor
+  Monitor,
 } from 'lucide-react';
 import {
   LineChart,
@@ -81,12 +81,13 @@ export default function AdminDashboard() {
       return;
     }
     fetchAdminData();
-  }, [session, router]);  const fetchAdminData = async () => {
+  }, [session, router]);
+  const fetchAdminData = async () => {
     try {
       const [statsResponse, officesResponse, complianceResponse] = await Promise.all([
         fetch('/api/dashboard/stats?days=30'),
         fetch('/api/offices'),
-        fetch('/api/monitoring')
+        fetch('/api/monitoring'),
       ]);
 
       if (statsResponse.ok) {
@@ -113,13 +114,16 @@ export default function AdminDashboard() {
   // Helper function to get all ISPs for an office
   const getOfficeISPs = (office: Office) => {
     const allISPs = new Set<string>();
-    
+
     // Add general ISPs
     if (office.isp) {
-      const generalISPs = office.isp.split(',').map(isp => isp.trim()).filter(Boolean);
+      const generalISPs = office.isp
+        .split(',')
+        .map(isp => isp.trim())
+        .filter(Boolean);
       generalISPs.forEach(isp => allISPs.add(isp));
     }
-    
+
     // Add section-specific ISPs
     if (office.sectionISPs) {
       try {
@@ -133,21 +137,21 @@ export default function AdminDashboard() {
         console.error('Error parsing section ISPs:', error);
       }
     }
-    
+
     return Array.from(allISPs);
   };
 
   // Helper function to get section-specific ISP summary
   const getSectionISPSummary = (office: Office) => {
     if (!office.sectionISPs) return null;
-    
+
     try {
       const sectionData = JSON.parse(office.sectionISPs);
       const sectionCount = Object.keys(sectionData).length;
       const totalSectionISPs = Object.values(sectionData).reduce((total: number, isps: any) => {
         return total + (Array.isArray(isps) ? isps.length : 0);
       }, 0);
-      
+
       return { sectionCount, totalSectionISPs };
     } catch (error) {
       return null;
@@ -177,9 +181,7 @@ export default function AdminDashboard() {
         {/* Header */}
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Admin Dashboard</h2>
-          <p className="text-gray-600 mt-1">
-            Monitor speed test performance across all offices
-          </p>
+          <p className="text-gray-600 mt-1">Monitor speed test performance across all offices</p>
         </div>
 
         {/* Stats Cards */}
@@ -196,7 +198,6 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
-
             <div className="stat-card">
               <div className="flex items-center">
                 <div className="p-2 bg-green-100 rounded-lg">
@@ -208,7 +209,6 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
-
             <div className="stat-card">
               <div className="flex items-center">
                 <div className="p-2 bg-purple-100 rounded-lg">
@@ -220,7 +220,6 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
-
             <div className="stat-card">
               <div className="flex items-center">
                 <div className="p-2 bg-orange-100 rounded-lg">
@@ -231,7 +230,8 @@ export default function AdminDashboard() {
                   <p className="stat-value">{stats.averageDownload} Mbps</p>
                 </div>
               </div>
-            </div>          </div>
+            </div>{' '}
+          </div>
         )}
 
         {/* Daily Compliance Overview */}
@@ -240,7 +240,9 @@ export default function AdminDashboard() {
             <div className="card-header flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Today's Test Compliance</h3>
-                <p className="text-sm text-gray-600">Offices must complete 3 tests daily (Morning, Noon, Afternoon)</p>
+                <p className="text-sm text-gray-600">
+                  Offices must complete 3 tests daily (Morning, Noon, Afternoon)
+                </p>
               </div>
               <Link
                 href="/admin/monitoring"
@@ -257,7 +259,9 @@ export default function AdminDashboard() {
                     <CheckCircle className="h-8 w-8 text-green-600" />
                   </div>
                   <p className="stat-label">Fully Compliant</p>
-                  <p className="text-2xl font-bold text-green-600">{compliance.fullyCompliantOffices}</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {compliance.fullyCompliantOffices}
+                  </p>
                   <p className="text-sm text-gray-500">3/3 slots completed</p>
                 </div>
 
@@ -266,7 +270,9 @@ export default function AdminDashboard() {
                     <AlertTriangle className="h-8 w-8 text-yellow-600" />
                   </div>
                   <p className="stat-label">Partial Compliance</p>
-                  <p className="text-2xl font-bold text-yellow-600">{compliance.partiallyCompliantOffices}</p>
+                  <p className="text-2xl font-bold text-yellow-600">
+                    {compliance.partiallyCompliantOffices}
+                  </p>
                   <p className="text-sm text-gray-500">1-2 slots completed</p>
                 </div>
 
@@ -275,7 +281,9 @@ export default function AdminDashboard() {
                     <XCircle className="h-8 w-8 text-red-600" />
                   </div>
                   <p className="stat-label">Non-Compliant</p>
-                  <p className="text-2xl font-bold text-red-600">{compliance.nonCompliantOffices}</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {compliance.nonCompliantOffices}
+                  </p>
                   <p className="text-sm text-gray-500">0 slots completed</p>
                 </div>
 
@@ -284,23 +292,27 @@ export default function AdminDashboard() {
                     <TrendingUp className="h-8 w-8 text-blue-600" />
                   </div>
                   <p className="stat-label">Overall Compliance</p>
-                  <p className="text-2xl font-bold text-blue-600">{compliance.overallCompliancePercentage}%</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {compliance.overallCompliancePercentage}%
+                  </p>
                   <p className="text-sm text-gray-500">of {compliance.totalOffices} offices</p>
                 </div>
               </div>
 
               {/* Quick compliance bar */}
               <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-                <div 
+                <div
                   className="bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 h-3 rounded-full transition-all duration-300"
-                  style={{ 
-                    width: `${compliance.overallCompliancePercentage}%` 
+                  style={{
+                    width: `${compliance.overallCompliancePercentage}%`,
                   }}
                 ></div>
               </div>
               <div className="flex justify-between text-sm text-gray-600">
                 <span>0%</span>
-                <span className="font-medium">{compliance.overallCompliancePercentage}% Overall Compliance</span>
+                <span className="font-medium">
+                  {compliance.overallCompliancePercentage}% Overall Compliance
+                </span>
                 <span>100%</span>
               </div>
             </div>
@@ -351,16 +363,16 @@ export default function AdminDashboard() {
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={stats.chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={(value) => format(new Date(value), 'MMM dd')}
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={value => format(new Date(value), 'MMM dd')}
                     />
                     <YAxis />
-                    <Tooltip 
-                      labelFormatter={(value) => format(new Date(value), 'MMM dd, yyyy')}
+                    <Tooltip
+                      labelFormatter={value => format(new Date(value), 'MMM dd, yyyy')}
                       formatter={(value: number, name: string) => [
                         `${value} ${name === 'ping' ? 'ms' : 'Mbps'}`,
-                        name.charAt(0).toUpperCase() + name.slice(1)
+                        name.charAt(0).toUpperCase() + name.slice(1),
                       ]}
                     />
                     <Line type="monotone" dataKey="download" stroke="#3B82F6" strokeWidth={2} />
@@ -380,14 +392,12 @@ export default function AdminDashboard() {
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={stats.chartData.slice(-14)}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={(value) => format(new Date(value), 'MM/dd')}
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={value => format(new Date(value), 'MM/dd')}
                     />
                     <YAxis />
-                    <Tooltip 
-                      labelFormatter={(value) => format(new Date(value), 'MMM dd, yyyy')}
-                    />
+                    <Tooltip labelFormatter={value => format(new Date(value), 'MMM dd, yyyy')} />
                     <Bar dataKey="download" fill="#3B82F6" opacity={0.6} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -397,23 +407,26 @@ export default function AdminDashboard() {
         )}
 
         {/* Offices Overview */}
-        <div className="card">          <div className="card-header flex justify-between items-center">
+        <div className="card">
+          {' '}
+          <div className="card-header flex justify-between items-center">
             <h3 className="text-lg font-semibold text-gray-900">Offices Overview</h3>
-            <Link 
-              href="/admin/offices"
-              className="btn-primary text-sm"
-            >
+            <Link href="/admin/offices" className="btn-primary text-sm">
               Manage Offices
             </Link>
           </div>
           <div className="card-content">
-            {offices.length > 0 ? (              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {offices.map((office) => {
+            {offices.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {offices.map(office => {
                   const allISPs = getOfficeISPs(office);
                   const sectionSummary = getSectionISPSummary(office);
-                  
+
                   return (
-                    <div key={office.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div
+                      key={office.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                    >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <h4 className="font-semibold text-gray-900">
@@ -423,14 +436,17 @@ export default function AdminDashboard() {
                             )}
                           </h4>
                           <p className="text-sm text-gray-600">{office.location}</p>
-                          
+
                           {/* ISP Information */}
                           <div className="mt-2">
                             {allISPs.length > 0 ? (
                               <div className="space-y-1">
                                 <div className="flex flex-wrap gap-1">
                                   {allISPs.slice(0, 3).map((isp, index) => (
-                                    <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    <span
+                                      key={index}
+                                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                    >
                                       {isp}
                                     </span>
                                   ))}
@@ -442,7 +458,8 @@ export default function AdminDashboard() {
                                 </div>
                                 {sectionSummary && (
                                   <p className="text-xs text-green-600">
-                                    Advanced: {sectionSummary.sectionCount} section(s), {sectionSummary.totalSectionISPs} total ISPs
+                                    Advanced: {sectionSummary.sectionCount} section(s),{' '}
+                                    {sectionSummary.totalSectionISPs} total ISPs
                                   </p>
                                 )}
                               </div>
@@ -452,7 +469,9 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                         <div className="text-right ml-4">
-                          <div className="text-lg font-bold text-blue-600">{office._count.speedTests}</div>
+                          <div className="text-lg font-bold text-blue-600">
+                            {office._count.speedTests}
+                          </div>
                           <div className="text-xs text-gray-500">tests</div>
                         </div>
                       </div>
@@ -461,7 +480,7 @@ export default function AdminDashboard() {
                           <Users className="h-4 w-4 mr-1" />
                           {office._count.users} users
                         </div>
-                        <Link 
+                        <Link
                           href={`/admin/speedtests?office=${office.id}`}
                           className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                         >
@@ -476,7 +495,9 @@ export default function AdminDashboard() {
               <div className="text-center py-8">
                 <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-500">No offices found</p>
-                <p className="text-sm text-gray-400 mt-1">Add your first office to start monitoring</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Add your first office to start monitoring
+                </p>
               </div>
             )}
           </div>

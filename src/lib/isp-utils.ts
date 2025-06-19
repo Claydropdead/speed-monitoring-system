@@ -9,43 +9,49 @@ interface ISPMapping {
 const ISP_MAPPINGS: ISPMapping[] = [
   {
     canonical: 'PLDT',
-    aliases: ['pldt', 'pldtr', 'philippine long distance telephone company', 'pldt inc', 'pldt.com']
+    aliases: [
+      'pldt',
+      'pldtr',
+      'philippine long distance telephone company',
+      'pldt inc',
+      'pldt.com',
+    ],
   },
   {
     canonical: 'Globe',
-    aliases: ['globe', 'globe telecom', 'globe telecom inc', 'globe.com.ph']
+    aliases: ['globe', 'globe telecom', 'globe telecom inc', 'globe.com.ph'],
   },
   {
     canonical: 'Converge',
-    aliases: ['converge', 'converge ict', 'converge ict solutions inc', 'convergeict.com']
+    aliases: ['converge', 'converge ict', 'converge ict solutions inc', 'convergeict.com'],
   },
   {
     canonical: 'Smart',
-    aliases: ['smart', 'smart communications', 'smart communications inc', 'smart.com.ph']
+    aliases: ['smart', 'smart communications', 'smart communications inc', 'smart.com.ph'],
   },
   {
     canonical: 'Sky',
-    aliases: ['sky', 'sky broadband', 'sky cable', 'skycable.com']
+    aliases: ['sky', 'sky broadband', 'sky cable', 'skycable.com'],
   },
   {
     canonical: 'DITO',
-    aliases: ['dito', 'dito telecommunity', 'dito cme', 'dito.ph']
-  }
+    aliases: ['dito', 'dito telecommunity', 'dito cme', 'dito.ph'],
+  },
 ];
 
 // Normalize ISP name to canonical form
 export function normalizeISPName(ispName: string): string {
   if (!ispName || !ispName.trim()) return '';
-  
+
   const normalized = ispName.trim().toLowerCase();
-  
+
   // First check if the input matches any canonical name (case-insensitive)
   for (const mapping of ISP_MAPPINGS) {
     if (mapping.canonical.toLowerCase() === normalized) {
       return mapping.canonical;
     }
   }
-  
+
   // Then check aliases
   for (const mapping of ISP_MAPPINGS) {
     // Check for exact match in aliases
@@ -57,13 +63,17 @@ export function normalizeISPName(ispName: string): string {
       return mapping.canonical;
     }
   }
-  
+
   // Return the original name with proper casing if no mapping found
   return ispName.trim();
 }
 
 // Check if detected ISP matches selected ISP
-export function validateISPMatch(selectedISP: string, detectedISP: string, relaxedMode: boolean = false): {
+export function validateISPMatch(
+  selectedISP: string,
+  detectedISP: string,
+  relaxedMode: boolean = false
+): {
   isMatch: boolean;
   confidence: number;
   detectedCanonical: string;
@@ -73,7 +83,7 @@ export function validateISPMatch(selectedISP: string, detectedISP: string, relax
 } {
   const selectedCanonical = normalizeISPName(selectedISP);
   const detectedCanonical = normalizeISPName(detectedISP);
-  
+
   // Exact match
   if (selectedCanonical === detectedCanonical) {
     return {
@@ -81,38 +91,41 @@ export function validateISPMatch(selectedISP: string, detectedISP: string, relax
       confidence: 100,
       detectedCanonical,
       selectedCanonical,
-      allowProceed: true
+      allowProceed: true,
     };
   }
-  
+
   // Partial match (case insensitive)
   const selectedLower = selectedCanonical.toLowerCase();
   const detectedLower = detectedCanonical.toLowerCase();
-  
+
   if (selectedLower.includes(detectedLower) || detectedLower.includes(selectedLower)) {
     return {
       isMatch: true,
       confidence: 80,
       detectedCanonical,
       selectedCanonical,
-      allowProceed: true
+      allowProceed: true,
     };
   }
 
   // In relaxed mode, allow special cases
   if (relaxedMode) {
     // Special case: PLDT infrastructure is used by many ISPs in the Philippines
-    if (detectedCanonical === 'PLDT' && ['Globe', 'Converge', 'Smart', 'Sky', 'DITO'].includes(selectedCanonical)) {
+    if (
+      detectedCanonical === 'PLDT' &&
+      ['Globe', 'Converge', 'Smart', 'Sky', 'DITO'].includes(selectedCanonical)
+    ) {
       return {
         isMatch: false,
         confidence: 60,
         detectedCanonical,
         selectedCanonical,
         allowProceed: true,
-        suggestion: `Note: Detected infrastructure provider is PLDT, but your service provider is ${selectedCanonical}. This is common in the Philippines. Test will proceed with ${selectedCanonical} as the ISP.`
+        suggestion: `Note: Detected infrastructure provider is PLDT, but your service provider is ${selectedCanonical}. This is common in the Philippines. Test will proceed with ${selectedCanonical} as the ISP.`,
       };
     }
-    
+
     // Allow other mismatches with warning
     return {
       isMatch: false,
@@ -120,10 +133,10 @@ export function validateISPMatch(selectedISP: string, detectedISP: string, relax
       detectedCanonical,
       selectedCanonical,
       allowProceed: true,
-      suggestion: `Warning: Detected ISP "${detectedCanonical}" differs from selected ISP "${selectedCanonical}". Test will proceed but data may be attributed to the wrong ISP.`
+      suggestion: `Warning: Detected ISP "${detectedCanonical}" differs from selected ISP "${selectedCanonical}". Test will proceed but data may be attributed to the wrong ISP.`,
     };
   }
-  
+
   // Strict mode - no match, block test
   return {
     isMatch: false,
@@ -131,6 +144,6 @@ export function validateISPMatch(selectedISP: string, detectedISP: string, relax
     detectedCanonical,
     selectedCanonical,
     allowProceed: false,
-    suggestion: `Detected ISP "${detectedCanonical}" does not match selected ISP "${selectedCanonical}". Please verify your connection and select the correct ISP.`
+    suggestion: `Detected ISP "${detectedCanonical}" does not match selected ISP "${selectedCanonical}". Please verify your connection and select the correct ISP.`,
   };
 }

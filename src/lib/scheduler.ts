@@ -15,7 +15,8 @@ class SpeedTestScheduler {
       const schedules = await prisma.testSchedule.findMany({
         where: { isActive: true },
         include: { office: true },
-      });      schedules.forEach((schedule) => {
+      });
+      schedules.forEach(schedule => {
         this.scheduleTest(schedule.id, schedule.officeId, schedule.timeSlot);
       });
     } catch (error) {
@@ -37,21 +38,24 @@ class SpeedTestScheduler {
 
   public scheduleTest(scheduleId: string, officeId: string, timeSlot: TimeSlot) {
     const cronPattern = this.getScheduleTime(timeSlot);
-    
+
     const task = cron.schedule(
       cronPattern,
       async () => {
-        await this.executeScheduledTest(scheduleId, officeId, timeSlot);      },
+        await this.executeScheduledTest(scheduleId, officeId, timeSlot);
+      },
       {
         timezone: 'America/New_York', // Adjust timezone as needed
       }
-    );this.jobs.set(scheduleId, task);
-  }  private async executeScheduledTest(scheduleId: string, officeId: string, timeSlot: TimeSlot) {
+    );
+    this.jobs.set(scheduleId, task);
+  }
+  private async executeScheduledTest(scheduleId: string, officeId: string, timeSlot: TimeSlot) {
     try {
       // Get office info to capture ISP at time of test
       const office = await prisma.office.findUnique({
         where: { id: officeId },
-        select: { isp: true }
+        select: { isp: true },
       });
 
       if (!office) {
@@ -60,7 +64,7 @@ class SpeedTestScheduler {
       }
 
       // Run the speed test
-      const testData = await runSpeedTest();      // Save the test result
+      const testData = await runSpeedTest(); // Save the test result
       await prisma.speedTest.create({
         data: {
           officeId,
@@ -82,7 +86,8 @@ class SpeedTestScheduler {
         where: { id: scheduleId },
         data: {
           lastRun: new Date(),
-          nextRun,        },
+          nextRun,
+        },
       });
     } catch (error) {
       console.error(`Failed to run scheduled test for office ${officeId}:`, error);
@@ -114,7 +119,8 @@ class SpeedTestScheduler {
   }
 
   public removeSchedule(scheduleId: string) {
-    const task = this.jobs.get(scheduleId);    if (task) {
+    const task = this.jobs.get(scheduleId);
+    if (task) {
       task.stop();
       this.jobs.delete(scheduleId);
     }
@@ -124,7 +130,7 @@ class SpeedTestScheduler {
       // Get office with its ISPs
       const office = await prisma.office.findUnique({
         where: { id: officeId },
-        select: { isps: true, isp: true }
+        select: { isps: true, isp: true },
       });
 
       if (!office) {
@@ -134,7 +140,7 @@ class SpeedTestScheduler {
 
       const officeIsps = JSON.parse(office.isps || `["${office.isp}"]`) as string[];
       const timeSlots = [TimeSlot.MORNING, TimeSlot.NOON, TimeSlot.AFTERNOON];
-      
+
       for (const isp of officeIsps) {
         for (const timeSlot of timeSlots) {
           const existingSchedule = await prisma.testSchedule.findUnique({
@@ -145,7 +151,8 @@ class SpeedTestScheduler {
                 timeSlot,
               },
             },
-          });          if (!existingSchedule) {
+          });
+          if (!existingSchedule) {
             const schedule = await prisma.testSchedule.create({
               data: {
                 officeId,

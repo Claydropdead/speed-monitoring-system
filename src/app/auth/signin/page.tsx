@@ -47,7 +47,12 @@ export default function SignIn() {
   const demoAccounts = [
     { label: 'Admin Demo', email: 'admin@speedtest.com', password: 'admin123', role: 'Admin' },
     { label: 'New York Office', email: 'newyork@speedtest.com', password: 'ny123', role: 'Office' },
-    { label: 'Los Angeles Office', email: 'losangeles@speedtest.com', password: 'la123', role: 'Office' },
+    {
+      label: 'Los Angeles Office',
+      email: 'losangeles@speedtest.com',
+      password: 'la123',
+      role: 'Office',
+    },
     { label: 'Chicago Office', email: 'chicago@speedtest.com', password: 'ch123', role: 'Office' },
   ];
 
@@ -95,7 +100,7 @@ export default function SignIn() {
                   required
                   className="input"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={e => setEmail(e.target.value)}
                 />
               </div>
             </div>
@@ -113,7 +118,7 @@ export default function SignIn() {
                   required
                   className="input pr-10"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={e => setPassword(e.target.value)}
                 />
                 <button
                   type="button"
@@ -130,11 +135,7 @@ export default function SignIn() {
             </div>
 
             <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="btn-primary w-full"
-              >
+              <button type="submit" disabled={isLoading} className="btn-primary w-full">
                 {isLoading ? 'Signing in...' : 'Sign in'}
               </button>
             </div>

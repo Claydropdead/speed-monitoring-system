@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
 
     if ((session.user as any)?.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }    const { searchParams } = new URL(request.url);
+    }
+    const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const unit = searchParams.get('unit');
@@ -63,11 +64,9 @@ export async function GET(request: NextRequest) {
     const timeOfDay = searchParams.get('timeOfDay');
 
     if (!startDate || !endDate) {
-      return NextResponse.json(
-        { error: 'Start date and end date are required' },
-        { status: 400 }
-      );
-    }    const start = startOfDay(parseISO(startDate));
+      return NextResponse.json({ error: 'Start date and end date are required' }, { status: 400 });
+    }
+    const start = startOfDay(parseISO(startDate));
     const end = endOfDay(parseISO(endDate));
 
     // Build where clause for office filtering
@@ -93,9 +92,9 @@ export async function GET(request: NextRequest) {
     // Add ISP filter - handle partial matches for ISPs with sections like "PLDT (IT)"
     if (isp) {
       speedTestWhere.isp = {
-        contains: isp
+        contains: isp,
       };
-    }    // Fetch offices with their speed tests
+    } // Fetch offices with their speed tests
     const offices = await prisma.office.findMany({
       where: whereClause,
       include: {
@@ -107,27 +106,31 @@ export async function GET(request: NextRequest) {
         },
       },
     });
-    
+
     // Return individual data points with office and ISP details for granular tooltips
     const detailedTrendData: TrendResponse[] = [];
-    
+
     offices.forEach((office: any) => {
       // Filter speed tests by time of day if specified
       let filteredTests = office.speedTests;
       if (timeOfDay) {
-        let hourStart = 0, hourEnd = 23;
+        let hourStart = 0,
+          hourEnd = 23;
         switch (timeOfDay) {
           case 'morning':
-            hourStart = 6; hourEnd = 11; // 6:00 AM - 11:59 AM
+            hourStart = 6;
+            hourEnd = 11; // 6:00 AM - 11:59 AM
             break;
           case 'noon':
-            hourStart = 12; hourEnd = 12; // 12:00 PM - 12:59 PM
+            hourStart = 12;
+            hourEnd = 12; // 12:00 PM - 12:59 PM
             break;
           case 'afternoon':
-            hourStart = 13; hourEnd = 18; // 1:00 PM - 6:00 PM
+            hourStart = 13;
+            hourEnd = 18; // 1:00 PM - 6:00 PM
             break;
         }
-          filteredTests = office.speedTests.filter((test: any) => {
+        filteredTests = office.speedTests.filter((test: any) => {
           const testHour = new Date(test.timestamp).getHours();
           return testHour >= hourStart && testHour <= hourEnd;
         });
@@ -135,20 +138,20 @@ export async function GET(request: NextRequest) {
 
       // Group speed tests by date and ISP
       const testsByDateAndISP = new Map<string, Map<string, any[]>>();
-      
+
       filteredTests.forEach((test: any) => {
         const testDate = format(test.timestamp, 'yyyy-MM-dd');
         const testISP = test.isp || 'Unknown';
-        
+
         if (!testsByDateAndISP.has(testDate)) {
           testsByDateAndISP.set(testDate, new Map<string, any[]>());
         }
-        
+
         const dateMap = testsByDateAndISP.get(testDate)!;
         if (!dateMap.has(testISP)) {
           dateMap.set(testISP, []);
         }
-        
+
         dateMap.get(testISP)!.push(test);
       });
 
@@ -183,21 +186,18 @@ export async function GET(request: NextRequest) {
                 avgDownload,
                 avgUpload,
                 avgPing,
-                testCount: tests.length
+                testCount: tests.length,
               });
             }
           }
         });
       });
-    });    // Sort detailed data by date
+    }); // Sort detailed data by date
     detailedTrendData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return NextResponse.json(detailedTrendData);
   } catch (error) {
     console.error('Error fetching trend data:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -15,6 +15,7 @@ A comprehensive internet speed monitoring system built with Next.js, TypeScript,
 ## 🚀 Quick Start
 
 ### Development Mode
+
 ```bash
 # Clone and install
 git clone <repository-url>
@@ -31,6 +32,7 @@ npm run dev
 **Development Admin:** `admin@speedtest.local` / `admin123`
 
 ### Production Deployment
+
 ```bash
 # Setup production environment
 npm run setup:production
@@ -53,28 +55,33 @@ npm run setup:production
 
 ## Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
 - Ookla Speedtest CLI (optional - falls back to mock data for development)
 
 ## Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd speed-test-monitoring-system
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Set up environment variables**
+
    ```bash
    cp .env.example .env
    ```
+
    Edit `.env` with your configuration:
+
    ```
    DATABASE_URL="file:./dev.db"
    NEXTAUTH_URL="http://localhost:3000"
@@ -82,24 +89,28 @@ npm run setup:production
    ```
 
 4. **Set up the database**
+
    ```bash
    npm run db:push
    npm run db:seed
    ```
 
 5. **Install Speedtest CLI (required for real speed tests)**
-   
+
    **Quick Setup (Windows):**
+
    ```bash
    npm run setup:speedtest
    ```
-   
+
    **Manual Installation:**
+
    - Download from https://www.speedtest.net/apps/cli
    - Or use: `winget install Ookla.Speedtest.CLI`
    - Or use: `choco install speedtest`
-   
+
    **Verify Installation:**
+
    ```bash
    npm run check:speedtest
    ```
@@ -112,11 +123,13 @@ npm run setup:production
 ## Running the Application
 
 ### Development
+
 ```bash
 npm run dev
 ```
 
 ### Production
+
 ```bash
 npm run build
 npm start
@@ -129,10 +142,12 @@ Visit `http://localhost:3000` to access the application.
 After seeding the database, you can log in with:
 
 **Admin Account:**
+
 - Email: `admin@speedtest.com`
 - Password: `admin123`
 
 **Office Accounts:**
+
 - New York: `newyork@speedtest.com` / `ny123`
 - Los Angeles: `losangeles@speedtest.com` / `la123`
 - Chicago: `chicago@speedtest.com` / `ch123`
@@ -157,18 +172,21 @@ The system uses the following main models:
 ## Features in Detail
 
 ### Automated Testing
+
 - Tests run 3 times daily at 9 AM, 12 PM, and 3 PM
 - Configurable timezone support
 - Automatic retry on failure
 - Results stored with timestamp and metadata
 
 ### Dashboard Analytics
+
 - Real-time performance metrics
 - Historical data visualization
 - Office comparison charts
 - Speed trend analysis
 
 ### User Management
+
 - Role-based access control
 - Office-specific data isolation
 - Admin oversight capabilities
@@ -177,6 +195,7 @@ The system uses the following main models:
 ## Development
 
 ### Database Operations
+
 ```bash
 # Push schema changes
 npm run db:push
@@ -189,7 +208,9 @@ npm run db:generate
 ```
 
 ### Adding New Features
+
 The codebase follows Next.js App Router conventions:
+
 - API routes in `src/app/api/`
 - Pages in `src/app/`
 - Components in `src/components/`
@@ -199,11 +220,13 @@ The codebase follows Next.js App Router conventions:
 ## Deployment
 
 1. **Build the application**
+
    ```bash
    npm run build
    ```
 
 2. **Set up production database**
+
    - Configure `DATABASE_URL` for production
    - Run migrations and seed data
 

@@ -24,7 +24,8 @@ interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {const { data: session, status } = useSession();
+export function DashboardLayout({ children }: DashboardLayoutProps) {
+  const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -64,7 +65,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {const { dat
   const isAdmin = session?.user?.role === 'ADMIN';
   const navigation = [
     { name: 'Dashboard', href: isAdmin ? '/admin/dashboard' : '/dashboard', icon: BarChart3 },
-    { name: 'Speed Tests', href: isAdmin ? '/admin/speedtests' : '/tests', icon: Zap },    ...(isAdmin
+    { name: 'Speed Tests', href: isAdmin ? '/admin/speedtests' : '/tests', icon: Zap },
+    ...(isAdmin
       ? [
           { name: 'Monitoring', href: '/admin/monitoring', icon: Monitor },
           { name: 'Offices', href: '/admin/offices', icon: Building },
@@ -84,7 +86,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {const { dat
       {/* Mobile sidebar */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
+          <div
+            className="fixed inset-0 bg-gray-600 bg-opacity-75"
+            onClick={() => setSidebarOpen(false)}
+          />
           <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
             <div className="flex h-16 shrink-0 items-center px-6 border-b border-gray-200">
               <Activity className="h-8 w-8 text-blue-600" />
@@ -92,14 +97,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {const { dat
             </div>
             <nav className="flex flex-1 flex-col px-4 py-4">
               <ul className="space-y-1">
-                {navigation.map((item) => {
+                {navigation.map(item => {
                   const isActive = pathname === item.href;
                   return (
                     <li key={item.name}>
                       <Link
                         href={item.href}
                         className={`${
-                          isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                          isActive
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                         } group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-medium`}
                         onClick={() => setSidebarOpen(false)}
                       >
@@ -126,14 +133,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {const { dat
             <ul className="flex flex-1 flex-col gap-y-7">
               <li>
                 <ul className="-mx-2 space-y-1">
-                  {navigation.map((item) => {
+                  {navigation.map(item => {
                     const isActive = pathname === item.href;
                     return (
                       <li key={item.name}>
                         <Link
                           href={item.href}
                           className={`${
-                            isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                            isActive
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                           } group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-medium`}
                         >
                           <item.icon className="h-5 w-5 shrink-0" />
@@ -165,12 +174,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {const { dat
                 {isAdmin
                   ? 'Admin Dashboard'
                   : session?.user?.office
-                  ? `${session.user.office.unitOffice}${
-                      session.user.office.subUnitOffice ? ` > ${session.user.office.subUnitOffice}` : ''
-                    }`
-                  : 'Dashboard'}
+                    ? `${session.user.office.unitOffice}${
+                        session.user.office.subUnitOffice
+                          ? ` > ${session.user.office.subUnitOffice}`
+                          : ''
+                      }`
+                    : 'Dashboard'}
               </h1>
-            </div>            <div className="flex items-center gap-x-4 lg:gap-x-6">
+            </div>{' '}
+            <div className="flex items-center gap-x-4 lg:gap-x-6">
               {/* User menu */}
               <div className="relative" ref={userMenuRef}>
                 <button

@@ -26,12 +26,20 @@ interface SpeedTestModalProps {
   onError?: (error: string, errorData?: any) => void;
 }
 
-export default function SpeedTestModal({ isOpen, onClose, officeId, selectedISP, selectedSection, onComplete, onError }: SpeedTestModalProps) {
+export default function SpeedTestModal({
+  isOpen,
+  onClose,
+  officeId,
+  selectedISP,
+  selectedSection,
+  onComplete,
+  onError,
+}: SpeedTestModalProps) {
   const [showResults, setShowResults] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isTestRunning, setIsTestRunning] = useState(false);
   const [hasCompletedTest, setHasCompletedTest] = useState(false);
-  
+
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
@@ -50,7 +58,7 @@ export default function SpeedTestModal({ isOpen, onClose, officeId, selectedISP,
       const startTimeout = setTimeout(() => {
         setIsTestRunning(true);
       }, 100);
-      
+
       return () => clearTimeout(startTimeout);
     }
   }, [isOpen]); // Remove other dependencies to prevent re-triggering
@@ -62,37 +70,45 @@ export default function SpeedTestModal({ isOpen, onClose, officeId, selectedISP,
     setShowResults(true);
     setError(null);
     onComplete?.(result);
-    
+
     // DON'T auto-close modal - let user decide when to close
     // User can manually close by clicking the X button or clicking outside
-  };  const handleError = (errorMessage: string, errorData?: any) => {
+  };
+  const handleError = (errorMessage: string, errorData?: any) => {
     console.log('🚨 SpeedTestModal: Received error:', errorMessage, errorData);
     setIsTestRunning(false);
     setError(errorMessage);
-    
+
     // Check if this is an ISP mismatch error that should be handled by parent
     if (errorData?.type === 'isp_mismatch') {
       // Call parent error handler for ISP mismatch
       onError?.(errorMessage, errorData);
       return; // Don't show error in modal, let parent handle it
     }
-    
+
     // Add helpful context for specific error types
     if (errorData?.networkError || errorMessage.includes('socket')) {
-      setError(errorMessage + "\n\nTip: Check your firewall settings or try again with a different network connection.");
+      setError(
+        errorMessage +
+          '\n\nTip: Check your firewall settings or try again with a different network connection.'
+      );
     } else if (errorData?.retryable || errorMessage.includes('Unknown error')) {
-      setError(errorMessage + "\n\nTip: This error is often temporary. Wait a moment and try running the test again.");
+      setError(
+        errorMessage +
+          '\n\nTip: This error is often temporary. Wait a moment and try running the test again.'
+      );
     }
-    
+
     // Call parent error handler for other errors too
     onError?.(errorMessage, errorData);
-  };const handleClose = () => {
+  };
+  const handleClose = () => {
     // Prevent closing during active test (but allow closing after completion)
     if (isTestRunning && !hasCompletedTest) {
       console.log('🛑 SpeedTestModal: Preventing close during active test');
       return;
     }
-    
+
     // Reset all states when closing
     setShowResults(false);
     setError(null);
@@ -126,8 +142,18 @@ export default function SpeedTestModal({ isOpen, onClose, officeId, selectedISP,
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">                <div className="flex justify-between items-center mb-4">                  <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900">
-                    {error ? 'Speed Test Error' : showResults ? 'Speed Test Complete!' : isTestRunning ? 'Speed Test in Progress' : 'Speed Test'}
+              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                {' '}
+                <div className="flex justify-between items-center mb-4">
+                  {' '}
+                  <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900">
+                    {error
+                      ? 'Speed Test Error'
+                      : showResults
+                        ? 'Speed Test Complete!'
+                        : isTestRunning
+                          ? 'Speed Test in Progress'
+                          : 'Speed Test'}
                   </Dialog.Title>
                   {!isTestRunning && (
                     <button
@@ -143,43 +169,53 @@ export default function SpeedTestModal({ isOpen, onClose, officeId, selectedISP,
                       Test running... Please wait
                     </div>
                   )}
-                </div>                {error ? (
+                </div>{' '}
+                {error ? (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                     <div className="flex">
                       <div className="flex-shrink-0">
                         <X className="h-5 w-5 text-red-400" />
                       </div>
                       <div className="ml-3 flex-1">
-                        <h3 className="text-sm font-medium text-red-800">
-                          Speed Test Failed
-                        </h3>
+                        <h3 className="text-sm font-medium text-red-800">Speed Test Failed</h3>
                         <div className="mt-2 text-sm text-red-700">
                           <div className="whitespace-pre-line">{error}</div>
-                          {error && (error.includes('temporary') || error.includes('Try again') || error.includes('socket')) && (                            <div className="mt-3 p-3 bg-orange-100 rounded-md border border-orange-300">
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-orange-800">🔄 Ready to retry</span>
-                                <button 
-                                  onClick={() => {
-                                    // Reset states and restart test
-                                    setError(null);
-                                    setIsTestRunning(true);
-                                    setHasCompletedTest(false);
-                                    setShowResults(false);
-                                  }}
-                                  className="bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700 transition-colors"
-                                >
-                                  Retry Test
-                                </button>
+                          {error &&
+                            (error.includes('temporary') ||
+                              error.includes('Try again') ||
+                              error.includes('socket')) && (
+                              <div className="mt-3 p-3 bg-orange-100 rounded-md border border-orange-300">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium text-orange-800">
+                                    🔄 Ready to retry
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      // Reset states and restart test
+                                      setError(null);
+                                      setIsTestRunning(true);
+                                      setHasCompletedTest(false);
+                                      setShowResults(false);
+                                    }}
+                                    className="bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700 transition-colors"
+                                  >
+                                    Retry Test
+                                  </button>
+                                </div>
+                                <p className="text-xs text-orange-700 mt-1">
+                                  This type of error is often temporary. Click "Retry Test" to try
+                                  again.
+                                </p>
                               </div>
-                              <p className="text-xs text-orange-700 mt-1">
-                                This type of error is often temporary. Click "Retry Test" to try again.
-                              </p>
-                            </div>
-                          )}
+                            )}
                         </div>
                       </div>
                     </div>
-                  </div>) : (                  <div>                    <Speedometer
+                  </div>
+                ) : (
+                  <div>
+                    {' '}
+                    <Speedometer
                       key={`speedometer-${selectedISP || 'default'}-${selectedSection || 'default'}`}
                       isRunning={isTestRunning}
                       officeId={officeId}

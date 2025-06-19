@@ -8,7 +8,7 @@ import { normalizeISPName } from '@/lib/isp-utils';
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
     // Check permissions
     if (session.user?.role !== 'ADMIN' && !admin && session.user?.officeId !== officeId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }    const where: any = {};
+    }
+    const where: any = {};
     if (session.user?.role !== 'ADMIN' && !admin) {
       where.officeId = session.user?.officeId;
     } else if (officeId) {
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
       // TODO: Implement ISP validation using the available-isps endpoint
 
       const { testResult } = body;
-      
+
       let testData;
       if (testResult) {
         // Use pre-computed results from SSE stream
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Run a new speed test with ISP validation
         testData = await runSpeedTest(selectedISP);
-        
+
         if (!validateSpeedTestData(testData)) {
           return NextResponse.json({ error: 'Invalid speed test data' }, { status: 400 });
         }
@@ -104,19 +105,21 @@ export async function POST(request: NextRequest) {
       // Get office info to capture ISP at time of test
       const office = await prisma.office.findUnique({
         where: { id: officeId || session.user.officeId! },
-        select: { isp: true }
+        select: { isp: true },
       });
 
       if (!office) {
         return NextResponse.json({ error: 'Office not found' }, { status: 404 });
-      }      // Determine which ISP name to save - include section for unique tracking
+      } // Determine which ISP name to save - include section for unique tracking
       let ispToSave: string;
       const selectedSection = body.selectedSection; // Get section from request body
-      
+
       if (selectedISP && selectedSection) {
         // Create section-specific ISP identifier for unique tracking
         ispToSave = `${normalizeISPName(selectedISP)} (${selectedSection})`;
-        console.log(`🏷️ Using selected ISP with section: "${selectedISP}" (${selectedSection}) -> "${ispToSave}"`);
+        console.log(
+          `🏷️ Using selected ISP with section: "${selectedISP}" (${selectedSection}) -> "${ispToSave}"`
+        );
       } else if (selectedISP) {
         // User selected ISP but no section specified - use normalized ISP only
         ispToSave = normalizeISPName(selectedISP);

@@ -4,13 +4,10 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -37,13 +34,10 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -58,7 +52,7 @@ export async function POST(
 
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
     });
 
     if (existingUser) {
@@ -67,7 +61,7 @@ export async function POST(
 
     // Verify office exists
     const office = await prisma.office.findUnique({
-      where: { id: officeId }
+      where: { id: officeId },
     });
 
     if (!office) {
@@ -109,7 +103,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -127,16 +121,19 @@ export async function DELETE(
       where: {
         id: userId,
         officeId,
-      }
+      },
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found or does not belong to this office' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'User not found or does not belong to this office' },
+        { status: 404 }
+      );
     }
 
     // Delete the user
     await prisma.user.delete({
-      where: { id: userId }
+      where: { id: userId },
     });
 
     return NextResponse.json({ message: 'User deleted successfully' });

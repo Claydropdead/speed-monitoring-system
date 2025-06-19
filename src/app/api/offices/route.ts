@@ -8,7 +8,7 @@ import bcrypt from 'bcryptjs';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-      if (!session) {
+    if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -28,7 +28,8 @@ export async function GET() {
 
       if (!office) {
         return NextResponse.json({ error: 'Office not found' }, { status: 404 });
-      }      return NextResponse.json({ offices: [office] });
+      }
+      return NextResponse.json({ offices: [office] });
     }
 
     // Admin can see all offices
@@ -54,13 +55,32 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }    const body = await request.json();
-    const { unitOffice, subUnitOffice, location, section, isp, isps, description, userEmail, userName, userPassword, sectionISPs } = body;
+    }
+    const body = await request.json();
+    const {
+      unitOffice,
+      subUnitOffice,
+      location,
+      section,
+      isp,
+      isps,
+      description,
+      userEmail,
+      userName,
+      userPassword,
+      sectionISPs,
+    } = body;
 
-    console.log('POST /api/offices - Create request:', { unitOffice, location, isp, isps, sectionISPs });
+    console.log('POST /api/offices - Create request:', {
+      unitOffice,
+      location,
+      isp,
+      isps,
+      sectionISPs,
+    });
 
     if (!unitOffice || !location || !isp) {
       return NextResponse.json({ error: 'Missing required office fields' }, { status: 400 });
@@ -72,16 +92,17 @@ export async function POST(request: NextRequest) {
 
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email: userEmail }
+      where: { email: userEmail },
     });
 
     if (existingUser) {
       return NextResponse.json({ error: 'User email already exists' }, { status: 400 });
-    }    // Hash the password
+    } // Hash the password
     const hashedPassword = await bcrypt.hash(userPassword, 12);
 
     // Create office and user in a transaction
-    const result = await prisma.$transaction(async (tx) => {      // Create the office exactly as specified - no automatic parent creation
+    const result = await prisma.$transaction(async tx => {
+      // Create the office exactly as specified - no automatic parent creation
       const office = await tx.office.create({
         data: {
           unitOffice,
@@ -120,7 +141,7 @@ export async function POST(request: NextRequest) {
         email: result.user.email,
         name: result.user.name,
         role: result.user.role,
-      }
+      },
     });
   } catch (error) {
     console.error('Error creating office:', error);
@@ -134,7 +155,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -147,25 +168,25 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete office and all related data in a transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async tx => {
       // Delete all speed tests for this office
       await tx.speedTest.deleteMany({
-        where: { officeId }
+        where: { officeId },
       });
 
       // Delete all test schedules for this office
       await tx.testSchedule.deleteMany({
-        where: { officeId }
+        where: { officeId },
       });
 
       // Delete all users for this office
       await tx.user.deleteMany({
-        where: { officeId }
+        where: { officeId },
       });
 
       // Finally delete the office
       await tx.office.delete({
-        where: { id: officeId }
+        where: { id: officeId },
       });
     });
 
@@ -179,12 +200,30 @@ export async function DELETE(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-      if (!session || session.user.role !== 'ADMIN') {
+    if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }    const body = await request.json();
-    const { id, unitOffice, subUnitOffice, location, section, isp, isps, description, sectionISPs } = body;
+    }
+    const body = await request.json();
+    const {
+      id,
+      unitOffice,
+      subUnitOffice,
+      location,
+      section,
+      isp,
+      isps,
+      description,
+      sectionISPs,
+    } = body;
 
-    console.log('PUT /api/offices - Update request:', { id, unitOffice, location, isp, isps, sectionISPs });
+    console.log('PUT /api/offices - Update request:', {
+      id,
+      unitOffice,
+      location,
+      isp,
+      isps,
+      sectionISPs,
+    });
 
     if (!id || !unitOffice || !location || !isp) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -192,10 +231,11 @@ export async function PUT(request: NextRequest) {
 
     // Check if office exists
     const existingOffice = await prisma.office.findUnique({
-      where: { id }
-    });    if (!existingOffice) {
+      where: { id },
+    });
+    if (!existingOffice) {
       return NextResponse.json({ error: 'Office not found' }, { status: 404 });
-    }    // Update the office
+    } // Update the office
     const updatedOffice = await prisma.office.update({
       where: { id },
       data: {

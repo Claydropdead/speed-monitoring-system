@@ -4,14 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { 
-  Download, 
-  Upload, 
-  Clock, 
-  TrendingUp, 
-  AlertCircle,
-  Calendar
-} from 'lucide-react';
+import { Download, Upload, Clock, TrendingUp, AlertCircle, Calendar } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -57,12 +50,12 @@ export default function Dashboard() {
   // Redirect admins to admin dashboard
   useEffect(() => {
     if (status === 'loading') return; // Still loading
-    
+
     if (session?.user?.role === 'ADMIN') {
       router.replace('/admin/dashboard');
       return;
     }
-    
+
     if (status === 'unauthenticated') {
       router.push('/auth/signin');
       return;
@@ -80,7 +73,9 @@ export default function Dashboard() {
     if (!session?.user?.officeId) return;
 
     try {
-      const response = await fetch(`/api/dashboard/stats?officeId=${session.user.officeId}&days=30`);
+      const response = await fetch(
+        `/api/dashboard/stats?officeId=${session.user.officeId}&days=30`
+      );
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -93,7 +88,8 @@ export default function Dashboard() {
   };
 
   const fetchRecentTests = async () => {
-    if (!session?.user?.officeId) return;    try {
+    if (!session?.user?.officeId) return;
+    try {
       const response = await fetch(`/api/speedtest?officeId=${session.user.officeId}&limit=10`);
       if (response.ok) {
         const data = await response.json();
@@ -101,7 +97,8 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error fetching recent tests:', error);
-    }  };
+    }
+  };
 
   if (loading) {
     return (
@@ -118,16 +115,15 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">        {/* Header */}
+      <div className="space-y-8">
+        {' '}
+        {/* Header */}
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Speed Test Dashboard</h2>
-            <p className="text-gray-600 mt-1">
-              Monitor your office internet performance
-            </p>
+            <p className="text-gray-600 mt-1">Monitor your office internet performance</p>
           </div>
         </div>
-
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
@@ -192,7 +188,6 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-
         {/* Charts */}
         {stats?.chartData && stats.chartData.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -205,16 +200,16 @@ export default function Dashboard() {
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={stats.chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={(value) => format(new Date(value), 'MMM dd')}
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={value => format(new Date(value), 'MMM dd')}
                     />
                     <YAxis />
-                    <Tooltip 
-                      labelFormatter={(value) => format(new Date(value), 'MMM dd, yyyy')}
+                    <Tooltip
+                      labelFormatter={value => format(new Date(value), 'MMM dd, yyyy')}
                       formatter={(value: number, name: string) => [
                         `${value} ${name === 'ping' ? 'ms' : 'Mbps'}`,
-                        name.charAt(0).toUpperCase() + name.slice(1)
+                        name.charAt(0).toUpperCase() + name.slice(1),
                       ]}
                     />
                     <Line type="monotone" dataKey="download" stroke="#3B82F6" strokeWidth={2} />
@@ -233,13 +228,13 @@ export default function Dashboard() {
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={stats.chartData.slice(-10)}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={(value) => format(new Date(value), 'MM/dd')}
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={value => format(new Date(value), 'MM/dd')}
                     />
                     <YAxis />
-                    <Tooltip 
-                      labelFormatter={(value) => format(new Date(value), 'MMM dd, yyyy')}
+                    <Tooltip
+                      labelFormatter={value => format(new Date(value), 'MMM dd, yyyy')}
                       formatter={(value: number) => [`${value} ms`, 'Ping']}
                     />
                     <Bar dataKey="ping" fill="#F59E0B" />
@@ -249,11 +244,11 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-
         {/* Recent Tests */}
         <div className="card">
           <div className="card-header">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Speed Tests</h3>          </div>
+            <h3 className="text-lg font-semibold text-gray-900">Recent Speed Tests</h3>{' '}
+          </div>
           <div className="card-content">
             {Array.isArray(recentTests) && recentTests.length > 0 ? (
               <div className="overflow-x-auto">
@@ -275,7 +270,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {recentTests.map((test) => (
+                    {recentTests.map(test => (
                       <tr key={test.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {format(new Date(test.timestamp), 'MMM dd, yyyy h:mm a')}
@@ -298,7 +293,9 @@ export default function Dashboard() {
               <div className="text-center py-8">
                 <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-500">No speed tests found</p>
-                <p className="text-sm text-gray-400 mt-1">Run your first speed test to see results here</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Run your first speed test to see results here
+                </p>
               </div>
             )}
           </div>

@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -23,8 +23,11 @@ export async function GET(request: NextRequest) {
     const dateFilter = new Date();
     dateFilter.setDate(dateFilter.getDate() - days);
 
-    const where = officeId ? { officeId } : 
-      session.user.role === 'ADMIN' ? {} : { officeId: session.user.officeId! };
+    const where = officeId
+      ? { officeId }
+      : session.user.role === 'ADMIN'
+        ? {}
+        : { officeId: session.user.officeId! };
 
     // Get basic stats
     const [totalTests, todayTests, avgStats, officesCount] = await Promise.all([
@@ -67,22 +70,28 @@ export async function GET(request: NextRequest) {
     });
 
     // Group data by date
-    const groupedData = chartData.reduce((acc, test) => {
-      const date = test.timestamp.toISOString().split('T')[0];
-      if (!acc[date]) {
-        acc[date] = { download: [], upload: [], ping: [], count: 0 };
-      }
-      acc[date].download.push(test.download);
-      acc[date].upload.push(test.upload);
-      acc[date].ping.push(test.ping);
-      acc[date].count++;
-      return acc;
-    }, {} as Record<string, { download: number[]; upload: number[]; ping: number[]; count: number }>);
+    const groupedData = chartData.reduce(
+      (acc, test) => {
+        const date = test.timestamp.toISOString().split('T')[0];
+        if (!acc[date]) {
+          acc[date] = { download: [], upload: [], ping: [], count: 0 };
+        }
+        acc[date].download.push(test.download);
+        acc[date].upload.push(test.upload);
+        acc[date].ping.push(test.ping);
+        acc[date].count++;
+        return acc;
+      },
+      {} as Record<string, { download: number[]; upload: number[]; ping: number[]; count: number }>
+    );
 
     const formattedChartData = Object.entries(groupedData).map(([date, values]) => ({
       date,
-      download: Math.round((values.download.reduce((a, b) => a + b, 0) / values.download.length) * 100) / 100,
-      upload: Math.round((values.upload.reduce((a, b) => a + b, 0) / values.upload.length) * 100) / 100,
+      download:
+        Math.round((values.download.reduce((a, b) => a + b, 0) / values.download.length) * 100) /
+        100,
+      upload:
+        Math.round((values.upload.reduce((a, b) => a + b, 0) / values.upload.length) * 100) / 100,
       ping: Math.round((values.ping.reduce((a, b) => a + b, 0) / values.ping.length) * 100) / 100,
     }));
 
