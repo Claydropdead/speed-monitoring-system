@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '../../../components/dashboard-layout';
+import { Download } from 'lucide-react';
 
 interface TrendData {
   date: string;
@@ -412,6 +413,151 @@ export default function ReportsPage() {
       isp: '',
     }));
   }, [filters.section]);
+
+  // CSV Export functionality
+  const exportToCSV = () => {
+    if (!Array.isArray(trendData) || trendData.length === 0) {
+      alert('No data available to export');
+      return;
+    }
+
+    // Filter data based on current filters
+    let filteredData = trendData.filter(item => {
+      let matches = true;
+
+      if (filters.unit && item.unit !== filters.unit) matches = false;
+      if (filters.subunit && item.subunit !== filters.subunit) matches = false;
+      if (filters.section && item.section !== filters.section) matches = false;
+      if (filters.isp && item.isp !== filters.isp) matches = false;
+      if (filters.timeOfDay && item.timeOfDay !== filters.timeOfDay) matches = false;
+
+      // Date filtering
+      const itemDate = new Date(item.date);
+      const startDate = new Date(filters.startDate);
+      const endDate = new Date(filters.endDate);
+      if (itemDate < startDate || itemDate > endDate) matches = false;
+
+      return matches;
+    });
+
+    if (filteredData.length === 0) {
+      alert('No data matches the current filters');
+      return;
+    }
+
+    // Define CSV headers based on the required fields
+    const csvHeaders = [
+      'Unit',
+      'Subunit', 
+      'Section',
+      'Location',
+      'ISP',
+      'Time Slot',
+      'Test Time',
+      'Download Speed (Mbps)',
+      'Upload Speed (Mbps)',
+      'Ping (ms)',
+      'Date',
+      'Status'
+    ];
+
+    // Convert data to CSV format
+    const csvData = filteredData.map(item => {
+      // Determine time slot based on timeOfDay field or timestamp
+      let timeSlot = '';
+      let testTime = '';
+      let status = 'Conducted';
+      
+      if (item.timeOfDay) {
+        timeSlot = item.timeOfDay;
+      } else if (item.timestamp) {
+        const hour = new Date(item.timestamp).getHours();
+        if (hour >= 6 && hour < 12) {
+          timeSlot = 'Morning';
+        } else if (hour >= 12 && hour < 15) {
+          timeSlot = 'Noon';
+        } else if (hour >= 15 && hour < 18) {
+          timeSlot = 'Afternoon';
+        } else {
+          timeSlot = 'Other';
+        }
+      } else {
+        timeSlot = 'Unknown';
+      }
+
+      // Extract test time from timestamp
+      if (item.timestamp) {
+        const testDate = new Date(item.timestamp);
+        testTime = testDate.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: false 
+        });
+      }
+
+      // Check if test was conducted (has valid speed data)
+      if (!item.avgDownload || item.avgDownload === 0) {
+        status = 'Not Conducted';
+      }
+
+      return [
+        item.unit || '',
+        item.subunit || '',
+        item.section || '',
+        item.office || '', // Using office as location
+        item.isp || '',
+        timeSlot,
+        testTime,
+        item.avgDownload?.toFixed(2) || '0.00',
+        item.avgUpload?.toFixed(2) || '0.00',
+        item.avgPing?.toFixed(0) || '0',
+        new Date(item.date).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }),
+        status
+      ];
+    });
+
+    // Create CSV content
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvData
+        .map(row =>
+          row
+            .map(field =>
+              // Escape fields that contain commas or quotes
+              typeof field === 'string' && (field.includes(',') || field.includes('"'))
+                ? `"${field.replace(/"/g, '""')}"`
+                : field
+            )
+            .join(',')
+        )
+    ].join('\n');
+
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+
+    // Generate filename with current date and filters
+    const dateStr = new Date().toISOString().split('T')[0];
+    let filename = `speed-test-report-${dateStr}`;
+    if (filters.unit) filename += `-${filters.unit.replace(/\s+/g, '-')}`;
+    if (filters.subunit) filename += `-${filters.subunit.replace(/\s+/g, '-')}`;
+    if (filters.section) filename += `-${filters.section.replace(/\s+/g, '-')}`;
+    filename += '.csv';
+
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-gray-50">
@@ -455,6 +601,13 @@ export default function ReportsPage() {
                 </div>
                 <div className="flex items-center space-x-4">
                   <button
+                    onClick={exportToCSV}
+                    className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Export CSV</span>
+                  </button>
+                  <button
                     onClick={() =>
                       setFilters({
                         unit: '',
@@ -473,7 +626,7 @@ export default function ReportsPage() {
                     Reset Filters
                   </button>
                   <div className="text-sm text-gray-500">
-                    {availableISPs.length} ISPs � {availableSections.length} Sections
+                    {availableISPs.length} ISPs • {availableSections.length} Sections
                   </div>
                 </div>
               </div>
