@@ -44,23 +44,6 @@ export default function SignIn() {
     }
   };
 
-  const demoAccounts = [
-    { label: 'Admin Demo', email: 'admin@speedtest.com', password: 'admin123', role: 'Admin' },
-    { label: 'New York Office', email: 'newyork@speedtest.com', password: 'ny123', role: 'Office' },
-    {
-      label: 'Los Angeles Office',
-      email: 'losangeles@speedtest.com',
-      password: 'la123',
-      role: 'Office',
-    },
-    { label: 'Chicago Office', email: 'chicago@speedtest.com', password: 'ch123', role: 'Office' },
-  ];
-
-  const handleDemoLogin = (demoEmail: string, demoPassword: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPassword);
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -140,39 +123,6 @@ export default function SignIn() {
               </button>
             </div>
           </form>
-
-          {/* Demo Accounts Section */}
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Demo Accounts</span>
-              </div>
-            </div>
-
-            <div className="mt-6 space-y-3">
-              {demoAccounts.map((account, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => handleDemoLogin(account.email, account.password)}
-                  className="w-full text-left p-3 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{account.label}</div>
-                      <div className="text-xs text-gray-500">{account.email}</div>
-                    </div>
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                      {account.role}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>

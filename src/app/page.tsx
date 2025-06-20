@@ -77,37 +77,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-
-        {/* Stats Preview */}
-        <div className="mt-32">
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Real-time Monitoring Dashboard
-              </h3>
-            </div>
-            <div className="card-content">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-600">150.5</div>
-                  <div className="text-sm text-gray-600">Avg Download (Mbps)</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600">85.2</div>
-                  <div className="text-sm text-gray-600">Avg Upload (Mbps)</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-orange-600">12.3</div>
-                  <div className="text-sm text-gray-600">Avg Ping (ms)</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-purple-600">1,247</div>
-                  <div className="text-sm text-gray-600">Total Tests</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </main>
     </div>
   );

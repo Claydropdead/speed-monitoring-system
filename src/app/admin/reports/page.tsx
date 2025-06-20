@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '../../../components/dashboard-layout';
-import { Download } from 'lucide-react';
+import { Download, Maximize2, Minimize2 } from 'lucide-react';
 
 interface TrendData {
   date: string;
@@ -74,6 +74,9 @@ export default function ReportsPage() {
     upload: true,
     ping: true,
   });
+
+  // Full screen state for chart
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   // Effects
   useEffect(() => {
@@ -193,8 +196,8 @@ export default function ReportsPage() {
     : {};
 
   const sortedData = !filters.unit ? processedData : processedData; // Chart dimensions and scaling
-  const chartWidth = 900; // Maximized for better space utilization
-  const chartHeight = 400;
+  const chartWidth = isFullScreen ? 1400 : 900; // Larger in fullscreen
+  const chartHeight = isFullScreen ? 700 : 400; // Taller in fullscreen
   const padding = { top: 40, right: 40, bottom: 80, left: 50 }; // Reduced padding for better space usage
 
   const downloads = sortedData.map(d => d.avgDownload);
@@ -556,7 +559,27 @@ export default function ReportsPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    
+    // Show success message
+    console.log(`CSV exported successfully: ${filename} (${filteredData.length} records)`);
   };
+
+  // Toggle fullscreen mode
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen);
+  };
+
+  // Handle escape key to exit fullscreen
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isFullScreen) {
+        setIsFullScreen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isFullScreen]);
 
   return (
     <DashboardLayout>
@@ -940,9 +963,34 @@ export default function ReportsPage() {
               </div>
             </div>{' '}
             {/* Chart and Visualization Section */}
-            <div className="max-w-7xl mx-auto px-4 pb-8">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-4 overflow-hidden">
+            <div className={`mx-auto px-4 pb-8 ${isFullScreen ? 'fixed inset-0 z-50 bg-white' : 'max-w-7xl'}`}>
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-full">
+                {/* Chart Header with Fullscreen Toggle */}
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Performance Chart</h3>
+                    <p className="text-sm text-gray-600">Network speed and latency trends over time</p>
+                  </div>
+                  <button
+                    onClick={toggleFullScreen}
+                    className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    title={isFullScreen ? 'Exit Fullscreen (Esc)' : 'Enter Fullscreen'}
+                  >
+                    {isFullScreen ? (
+                      <>
+                        <Minimize2 className="h-4 w-4" />
+                        <span>Exit Fullscreen</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="h-4 w-4" />
+                        <span>Fullscreen</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                
+                <div className={`${isFullScreen ? 'p-6 h-full overflow-auto' : 'p-4'} overflow-hidden`}>
                   {loading ? (
                     <div className="flex justify-center items-center h-96">
                       <div className="flex flex-col items-center space-y-4">
@@ -970,7 +1018,7 @@ export default function ReportsPage() {
                     <div className="space-y-6">
                       {' '}
                       {/* Chart Container */}
-                      <div className="relative bg-gray-50 rounded-lg p-2 flex justify-center w-full overflow-hidden">
+                      <div className={`relative bg-gray-50 rounded-lg flex justify-center w-full overflow-hidden ${isFullScreen ? 'p-4' : 'p-2'}`}>
                         <div className="w-full max-w-none flex justify-center">
                           <svg
                             width={chartWidth}
