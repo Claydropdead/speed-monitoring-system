@@ -442,15 +442,32 @@ export default function AdminOfficesPage() {
     ) {
       setError('Please fill in all required fields and at least one ISP');
       return;
-    }
-
-    try {
-      setSubmitting(true);
+    }    try {
+      setSubmitting(true);      // Sanitize sectionISPs to remove corrupted/invalid entries
+      let cleanSectionISPs: { [key: string]: string[] } = {};
+      if (formData.sectionISPs && Object.keys(formData.sectionISPs).length > 0) {
+        // Filter out invalid section names and empty ISP arrays
+        Object.entries(formData.sectionISPs).forEach(([sectionName, isps]) => {
+          // Only include sections with valid names and ISPs
+          if (sectionName && 
+              sectionName.trim() !== '' && 
+              !(/^\d+$/.test(sectionName)) && // Exclude pure numeric keys
+              Array.isArray(isps) && 
+              isps.some(isp => isp && isp.trim() !== '')) {
+            // Filter out empty ISPs from the array
+            const validISPs = isps.filter(isp => isp && isp.trim() !== '');
+            if (validISPs.length > 0) {
+              cleanSectionISPs[sectionName.trim()] = validISPs;
+            }
+          }
+        });
+      }
 
       const officeData = {
         ...formData,
         isp: filledISPs[0], // Set primary ISP to the first one
         isps: JSON.stringify(filledISPs), // Store all ISPs as JSON
+        sectionISPs: cleanSectionISPs, // Send clean object (API will stringify it)
       };
 
       const response = await fetch('/api/offices', {
@@ -531,18 +548,14 @@ export default function AdminOfficesPage() {
     fetchOfficeUsers(officeId);
   };
   const handleEditOffice = (office: Office) => {
-    setEditingOffice(office.id);
-
-    // Parse existing ISPs or use primary ISP as fallback
+    setEditingOffice(office.id);    // Parse existing ISPs from isps field only
     let existingISPs: string[] = [];
     try {
       if (office.isps) {
         existingISPs = JSON.parse(office.isps);
-      } else {
-        existingISPs = [office.isp];
       }
     } catch {
-      existingISPs = [office.isp];
+      existingISPs = [];
     }
 
     // Parse section-specific ISPs if available
@@ -560,10 +573,9 @@ export default function AdminOfficesPage() {
     }
     setEditFormData({
       id: office.id,
-      unitOffice: office.unitOffice,
-      subUnitOffice: office.subUnitOffice || '',
+      unitOffice: office.unitOffice,      subUnitOffice: office.subUnitOffice || '',
       location: office.location,
-      isp: office.isp,
+      isp: '', // Legacy field - no longer populated
       isps: JSON.stringify(existingISPs),
       description: office.description || '',
       sectionISPs: JSON.stringify(existingSectionISPs),
@@ -590,14 +602,41 @@ export default function AdminOfficesPage() {
     if (!editFormData.unitOffice || !editFormData.location || filledISPs.length === 0) {
       setError('Please fill in all required fields and at least one ISP');
       return;
-    }
-    try {
+    }    try {
       setSubmitting(true);
+        // Sanitize sectionISPs to remove corrupted/invalid entries
+      let cleanSectionISPs: { [key: string]: string[] } = {};
+      if (editFormData.sectionISPs) {
+        try {
+          const currentSectionISPs = JSON.parse(editFormData.sectionISPs);
+          if (typeof currentSectionISPs === 'object' && !Array.isArray(currentSectionISPs)) {
+            // Filter out invalid section names and empty ISP arrays
+            Object.entries(currentSectionISPs).forEach(([sectionName, isps]: [string, any]) => {
+              // Only include sections with valid names and ISPs
+              if (sectionName && 
+                  sectionName.trim() !== '' && 
+                  !(/^\d+$/.test(sectionName)) && // Exclude pure numeric keys
+                  Array.isArray(isps) && 
+                  isps.some((isp: string) => isp && isp.trim() !== '')) {
+                // Filter out empty ISPs from the array
+                const validISPs = isps.filter((isp: string) => isp && isp.trim() !== '');
+                if (validISPs.length > 0) {
+                  cleanSectionISPs[sectionName.trim()] = validISPs;
+                }
+              }
+            });
+          }
+        } catch (error) {
+          console.warn('Error parsing section ISPs during update, using empty object:', error);
+          cleanSectionISPs = {};
+        }
+      }
+      
       const updateData = {
         ...editFormData,
         isp: filledISPs[0], // Set primary ISP to the first one
         isps: JSON.stringify(filledISPs), // Store all ISPs as JSON
-        sectionISPs: editFormData.sectionISPs || '{}', // Include section-specific ISPs
+        sectionISPs: cleanSectionISPs, // Send clean object (API will stringify it)
       };
 
       const response = await fetch('/api/offices', {
@@ -1171,14 +1210,11 @@ export default function AdminOfficesPage() {
                       {(() => {
                         try {
                           // Count general ISPs
-                          let generalISPCount = 0;
-                          if (office.isps) {
+                          let generalISPCount = 0;                          if (office.isps) {
                             const generalISPs = JSON.parse(office.isps);
                             if (Array.isArray(generalISPs)) {
                               generalISPCount = generalISPs.filter(isp => isp && isp.trim()).length;
                             }
-                          } else if (office.isp) {
-                            generalISPCount = 1;
                           }
                           // Count section-specific ISPs
                           let sectionISPCount = 0;
@@ -1264,12 +1300,11 @@ export default function AdminOfficesPage() {
 
                         try {
                           if (office.isps) {
-                            const parsed = JSON.parse(office.isps);
-                            displayISPs = Array.isArray(parsed)
+                            const parsed = JSON.parse(office.isps);                            displayISPs = Array.isArray(parsed)
                               ? parsed
-                              : [office.isp].filter(Boolean);
+                              : [];
                           } else {
-                            displayISPs = office.isp ? [office.isp] : [];
+                            displayISPs = [];
                           }
 
                           if (office.sectionISPs) {
@@ -1281,12 +1316,12 @@ export default function AdminOfficesPage() {
                           }
                         } catch (error) {
                           console.warn('Failed to parse office ISPs:', error);
-                          displayISPs = office.isp ? [office.isp] : [];
+                          displayISPs = [];
                         }
 
                         // Ensure displayISPs is always an array
                         if (!Array.isArray(displayISPs)) {
-                          displayISPs = office.isp ? [office.isp] : ['Unknown ISP'];
+                          displayISPs = [];
                         }
 
                         return (
@@ -1308,12 +1343,11 @@ export default function AdminOfficesPage() {
                               <div className="space-y-1">
                                 <span className="text-xs text-gray-500">
                                   Section-specific ISPs:
-                                </span>
-                                {Object.entries(sectionISPs).map(([section, isps]) => (
+                                </span>                                {Object.entries(sectionISPs).map(([section, isps]) => (
                                   <div key={section} className="text-xs">
                                     <span className="text-gray-600 font-medium">{section}:</span>
                                     <div className="flex flex-wrap gap-1 mt-1">
-                                      {isps.map((isp, index) => (
+                                      {Array.isArray(isps) && isps.map((isp, index) => (
                                         <span
                                           key={index}
                                           className="inline-block px-1.5 py-0.5 bg-green-100 text-green-800 text-xs rounded"
@@ -1322,7 +1356,7 @@ export default function AdminOfficesPage() {
                                         </span>
                                       ))}
                                       <span className="text-xs text-gray-400">
-                                        ({isps.length} ISP{isps.length > 1 ? 's' : ''})
+                                        ({Array.isArray(isps) ? isps.length : 0} ISP{Array.isArray(isps) && isps.length > 1 ? 's' : ''})
                                       </span>
                                     </div>
                                   </div>

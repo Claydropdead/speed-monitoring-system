@@ -60,7 +60,8 @@ interface Office {
   subUnitOffice?: string;
   location: string;
   isp: string;
-  sectionISPs?: string;
+  isps?: string; // JSON string containing array of all ISPs
+  sectionISPs?: string; // JSON string containing section-specific ISP configuration
   _count: {
     speedTests: number;
     users: number;
@@ -93,9 +94,7 @@ export default function AdminDashboard() {
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         setStats(statsData);
-      }
-
-      if (officesResponse.ok) {
+      }      if (officesResponse.ok) {
         const officesData = await officesResponse.json();
         setOffices(officesData.offices);
       }
@@ -109,51 +108,133 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Helper function to get all ISPs for an office
+  };  // Helper function to get all ISPs for an office
   const getOfficeISPs = (office: Office) => {
     const allISPs = new Set<string>();
 
-    // Add general ISPs
-    if (office.isp) {
-      const generalISPs = office.isp
-        .split(',')
-        .map(isp => isp.trim())
-        .filter(Boolean);
-      generalISPs.forEach(isp => allISPs.add(isp));
+    // Parse the isps JSON field (primary source)
+    if (office.isps && office.isps.trim()) {
+      try {
+        const parsed = JSON.parse(office.isps);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          parsed.forEach(isp => {
+            if (isp && typeof isp === 'string' && isp.trim()) {
+              allISPs.add(isp.trim());
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Error parsing primary ISPs for office:', office.id, e);
+      }
     }
 
-    // Add section-specific ISPs
-    if (office.sectionISPs) {
+    // Add section-specific ISPs with better error handling
+    if (office.sectionISPs && office.sectionISPs.trim()) {
       try {
-        const sectionData = JSON.parse(office.sectionISPs);
-        Object.values(sectionData).forEach((isps: any) => {
-          if (Array.isArray(isps)) {
-            isps.forEach(isp => allISPs.add(isp));
-          }
-        });
+        // Sanitize the JSON string
+        let sanitizedJson = office.sectionISPs.trim().replace(/^\uFEFF/, '');
+        const sectionData = JSON.parse(sanitizedJson);
+          if (sectionData && typeof sectionData === 'object' && !Array.isArray(sectionData)) {
+          Object.entries(sectionData).forEach(([sectionName, isps]: [string, any]) => {
+            // Filter out corrupted section names (empty strings, pure numbers)
+            const isValidSection = sectionName && 
+                                  sectionName.trim() !== '' && 
+                                  !(/^\d+$/.test(sectionName));
+            
+            if (isValidSection && Array.isArray(isps)) {
+              isps.forEach(isp => {
+                if (isp && typeof isp === 'string' && isp.trim()) {
+                  allISPs.add(isp.trim());
+                }
+              });
+            }
+          });
+        } else if (Array.isArray(sectionData)) {
+          // Handle case where section data is mistakenly an array
+          console.warn('Section ISPs is an array instead of object for office:', office.id);
+          sectionData.forEach(isp => {
+            if (isp && typeof isp === 'string' && isp.trim()) {
+              allISPs.add(isp.trim());
+            }
+          });
+        }
       } catch (error) {
-        console.error('Error parsing section ISPs:', error);
+        console.error('Error parsing section ISPs for office:', office.id, error);
+        console.error('Raw section ISPs data:', office.sectionISPs);
       }
     }
 
     return Array.from(allISPs);
-  };
-
-  // Helper function to get section-specific ISP summary
+  };  // Helper function to get section-specific ISP summary
   const getSectionISPSummary = (office: Office) => {
-    if (!office.sectionISPs) return null;
+    if (!office.sectionISPs || office.sectionISPs.trim() === '') return null;
 
     try {
-      const sectionData = JSON.parse(office.sectionISPs);
-      const sectionCount = Object.keys(sectionData).length;
-      const totalSectionISPs = Object.values(sectionData).reduce((total: number, isps: any) => {
-        return total + (Array.isArray(isps) ? isps.length : 0);
+      // Handle potential corrupted data by sanitizing the JSON string
+      let sanitizedJson = office.sectionISPs.trim();
+      
+      // Remove any potential BOM or invisible characters
+      sanitizedJson = sanitizedJson.replace(/^\uFEFF/, '');
+      
+      const sectionData = JSON.parse(sanitizedJson);
+        // Ensure sectionData is a valid object and not an array
+      if (!sectionData || typeof sectionData !== 'object' || Array.isArray(sectionData)) {
+        console.warn('Invalid section data structure for office:', office.id, sectionData);
+        return null;
+      }
+      
+      // Filter out corrupted/invalid section names
+      const validSections = Object.entries(sectionData).filter(([sectionName, isps]) => {
+        // Filter out empty strings, pure numbers, and invalid section names
+        const isValidName = sectionName && 
+                           sectionName.trim() !== '' && 
+                           !(/^\d+$/.test(sectionName)) && // Remove pure numeric keys like "0", "1", "2"
+                           sectionName.length > 0;
+        
+        const hasValidISPs = Array.isArray(isps) && isps.length > 0 &&
+                           isps.some(isp => isp && typeof isp === 'string' && isp.trim() !== '');
+        
+        return isValidName && hasValidISPs;
+      });
+      
+      // Check for corruption warning
+      const totalKeys = Object.keys(sectionData).length;
+      const hasCorruption = totalKeys > validSections.length || 
+                           Object.keys(sectionData).some(key => /^\d+$/.test(key) || key.trim() === '');
+      
+      const sectionCount = validSections.length;
+      const totalSectionISPs = validSections.reduce((total: number, [, isps]: [string, any]) => {
+        if (!Array.isArray(isps)) return total;
+        return total + isps.filter(isp => isp && typeof isp === 'string' && isp.trim() !== '').length;
       }, 0);
 
-      return { sectionCount, totalSectionISPs };
+      // Return even if count is 0 to indicate sections exist but might be corrupted
+      return { 
+        sectionCount, 
+        totalSectionISPs,
+        hasData: sectionCount > 0 || Object.keys(sectionData).length > 0,
+        corrupted: hasCorruption
+      };
     } catch (error) {
+      console.error('Error parsing section ISPs for office:', office.id, error);
+      console.error('Raw sectionISPs data:', office.sectionISPs);
+      
+      // Try to recover by checking if it's a simple array instead of object
+      try {
+        const fallbackData = JSON.parse(office.sectionISPs);
+        if (Array.isArray(fallbackData)) {
+          console.warn('Found array instead of object for section ISPs, converting...');
+          return { 
+            sectionCount: 1, 
+            totalSectionISPs: fallbackData.length,
+            hasData: fallbackData.length > 0,
+            corrupted: true
+          };
+        }
+      } catch (fallbackError) {
+        console.error('Fallback parsing also failed:', fallbackError);
+      }
+      
       return null;
     }
   };
@@ -417,8 +498,7 @@ export default function AdminDashboard() {
           </div>
           <div className="card-content">
             {offices.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {offices.map(office => {
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">                {offices.map(office => {
                   const allISPs = getOfficeISPs(office);
                   const sectionSummary = getSectionISPSummary(office);
 
@@ -455,11 +535,16 @@ export default function AdminDashboard() {
                                       +{allISPs.length - 3} more
                                     </span>
                                   )}
-                                </div>
-                                {sectionSummary && (
+                                </div>                                {sectionSummary && sectionSummary.hasData && (
                                   <p className="text-xs text-green-600">
+                                    {sectionSummary.corrupted && (
+                                      <span className="text-orange-600 mr-1">⚠️</span>
+                                    )}
                                     Advanced: {sectionSummary.sectionCount} section(s),{' '}
                                     {sectionSummary.totalSectionISPs} total ISPs
+                                    {sectionSummary.corrupted && (
+                                      <span className="text-orange-600 ml-1">(needs repair)</span>
+                                    )}
                                   </p>
                                 )}
                               </div>
