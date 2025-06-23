@@ -625,9 +625,7 @@ export default function AdminOfficesPage() {
                 }
               }
             });
-          }
-        } catch (error) {
-          console.warn('Error parsing section ISPs during update, using empty object:', error);
+          }        } catch (error) {
           cleanSectionISPs = {};
         }
       }

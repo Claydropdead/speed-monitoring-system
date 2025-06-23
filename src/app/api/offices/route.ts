@@ -40,39 +40,7 @@ export async function GET() {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    // Debug: Log section ISPs data for all offices to identify corrupted data
-    console.log('\n=== DEBUG: Office Section ISPs Analysis ===');
-    offices.forEach(office => {
-      if (office.sectionISPs) {
-        try {
-          const sectionData = JSON.parse(office.sectionISPs);
-          const sectionCount = Object.keys(sectionData).length;
-          const validSections = Object.entries(sectionData).filter(([sectionName, isps]: [string, any]) => {
-            return sectionName && sectionName.trim() && 
-                   Array.isArray(isps) && isps.length > 0 &&
-                   isps.some((isp: any) => isp && typeof isp === 'string' && isp.trim());
-          });
-          
-          console.log(`Office: ${office.unitOffice}`);
-          console.log(`  Raw sectionISPs: ${office.sectionISPs}`);
-          console.log(`  Total sections: ${sectionCount}`);
-          console.log(`  Valid sections: ${validSections.length}`);
-          console.log(`  Valid section names: ${validSections.map(([name]) => name).join(', ')}`);
-          
-          if (sectionCount > 5) {
-            console.log(`  ⚠️  WARNING: Office has ${sectionCount} sections - possible corrupted data`);
-          }
-        } catch (error) {
-          console.log(`Office: ${office.unitOffice} - ERROR parsing sectionISPs:`, error);
-        }
-      } else {
-        console.log(`Office: ${office.unitOffice} - No section ISPs`);
-      }
-    });
-    console.log('=== END DEBUG ===\n');
+      orderBy: { createdAt: 'desc' },    });
 
     return NextResponse.json({ offices });
   } catch (error) {

@@ -122,9 +122,8 @@ export default function AdminDashboard() {
               allISPs.add(isp.trim());
             }
           });
-        }
-      } catch (e) {
-        console.warn('Error parsing primary ISPs for office:', office.id, e);
+        }      } catch (e) {
+        // Error parsing primary ISPs, skip
       }
     }
 
@@ -148,10 +147,8 @@ export default function AdminDashboard() {
                 }
               });
             }
-          });
-        } else if (Array.isArray(sectionData)) {
+          });        } else if (Array.isArray(sectionData)) {
           // Handle case where section data is mistakenly an array
-          console.warn('Section ISPs is an array instead of object for office:', office.id);
           sectionData.forEach(isp => {
             if (isp && typeof isp === 'string' && isp.trim()) {
               allISPs.add(isp.trim());
@@ -159,8 +156,7 @@ export default function AdminDashboard() {
           });
         }
       } catch (error) {
-        console.error('Error parsing section ISPs for office:', office.id, error);
-        console.error('Raw section ISPs data:', office.sectionISPs);
+        // Error parsing section ISPs, skip
       }
     }
 
@@ -176,10 +172,8 @@ export default function AdminDashboard() {
       // Remove any potential BOM or invisible characters
       sanitizedJson = sanitizedJson.replace(/^\uFEFF/, '');
       
-      const sectionData = JSON.parse(sanitizedJson);
-        // Ensure sectionData is a valid object and not an array
+      const sectionData = JSON.parse(sanitizedJson);      // Ensure sectionData is a valid object and not an array
       if (!sectionData || typeof sectionData !== 'object' || Array.isArray(sectionData)) {
-        console.warn('Invalid section data structure for office:', office.id, sectionData);
         return null;
       }
       
@@ -214,16 +208,13 @@ export default function AdminDashboard() {
         totalSectionISPs,
         hasData: sectionCount > 0 || Object.keys(sectionData).length > 0,
         corrupted: hasCorruption
-      };
-    } catch (error) {
-      console.error('Error parsing section ISPs for office:', office.id, error);
-      console.error('Raw sectionISPs data:', office.sectionISPs);
+      };    } catch (error) {
+      // Error parsing section ISPs, return null
       
       // Try to recover by checking if it's a simple array instead of object
       try {
         const fallbackData = JSON.parse(office.sectionISPs);
         if (Array.isArray(fallbackData)) {
-          console.warn('Found array instead of object for section ISPs, converting...');
           return { 
             sectionCount: 1, 
             totalSectionISPs: fallbackData.length,
@@ -232,7 +223,7 @@ export default function AdminDashboard() {
           };
         }
       } catch (fallbackError) {
-        console.error('Fallback parsing also failed:', fallbackError);
+        // Fallback parsing also failed
       }
       
       return null;
