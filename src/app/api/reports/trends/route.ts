@@ -41,6 +41,8 @@ interface TrendResponse {
   avgUpload: number;
   avgPing: number;
   testCount: number;
+  timestamp?: string; // Add timestamp for individual test data
+  testId?: string; // Add test ID for individual test data
 }
 
 export async function GET(request: NextRequest) {
@@ -62,6 +64,7 @@ export async function GET(request: NextRequest) {
     const isp = searchParams.get('isp');
     const section = searchParams.get('section');
     const timeOfDay = searchParams.get('timeOfDay');
+    const granular = searchParams.get('granular') === 'true'; // New parameter for individual test data
 
     if (!startDate || !endDate) {
       return NextResponse.json({ error: 'Start date and end date are required' }, { status: 400 });
@@ -70,15 +73,13 @@ export async function GET(request: NextRequest) {
     const end = endOfDay(parseISO(endDate));
 
     // Build where clause for office filtering
+    // Note: We don't filter by section here because sections are determined by ISP names in speed tests
     const whereClause: any = {};
     if (unit) {
       whereClause.unitOffice = unit;
     }
     if (subunit) {
       whereClause.subUnitOffice = subunit;
-    }
-    if (section) {
-      whereClause.section = section;
     }
 
     // Build speed test where clause
@@ -89,12 +90,51 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    // Add ISP filter - handle partial matches for ISPs with sections like "PLDT (IT)"
+    // Build ISP filtering conditions
+    const ispConditions: any[] = [];
+
+    // Add specific ISP filter if provided
     if (isp) {
-      speedTestWhere.isp = {
-        contains: isp,
-      };
-    } // Fetch offices with their speed tests
+      ispConditions.push({
+        isp: {
+          contains: isp,
+        },
+      });
+    }
+
+    // Add section-based ISP filtering
+    if (section) {
+      if (section === 'General') {
+        // For "General" section, include ISPs with "(General)" indicator
+        ispConditions.push({
+          isp: {
+            contains: '(General)',
+          },
+        });
+      } else {
+        // For specific sections, include only ISPs that contain the section name in parentheses
+        ispConditions.push({
+          isp: {
+            contains: `(${section})`,
+          },
+        });
+      }
+    }
+
+    // Apply ISP conditions using AND logic if multiple conditions exist
+    if (ispConditions.length > 0) {
+      if (ispConditions.length === 1) {
+        // Single condition, apply directly
+        Object.assign(speedTestWhere, ispConditions[0]);
+      } else {
+        // Multiple conditions, use AND
+        speedTestWhere.AND = ispConditions;
+      }
+    }
+
+    console.log('🔍 API Debug - Filters received:', { unit, subunit, section, isp, timeOfDay });
+    console.log('🔍 API Debug - Office whereClause:', JSON.stringify(whereClause, null, 2));
+    console.log('🔍 API Debug - SpeedTest whereClause:', JSON.stringify(speedTestWhere, null, 2));    // Fetch offices with their speed tests
     const offices = await prisma.office.findMany({
       where: whereClause,
       include: {
@@ -105,6 +145,15 @@ export async function GET(request: NextRequest) {
           },
         },
       },
+    });
+
+    console.log('🔍 API Debug - Found offices:', offices.length);
+    offices.forEach(office => {
+      console.log(`🏢 Office: ${office.unitOffice}${office.subUnitOffice ? ' > ' + office.subUnitOffice : ''}, Section: ${office.section}, Speed tests: ${office.speedTests.length}`);
+      if (office.speedTests.length > 0) {
+        const uniqueISPs = [...new Set(office.speedTests.map(test => test.isp))];
+        console.log(`  📡 ISPs found: ${uniqueISPs.join(', ')}`);
+      }
     });
 
     // Return individual data points with office and ISP details for granular tooltips
@@ -155,43 +204,70 @@ export async function GET(request: NextRequest) {
         dateMap.get(testISP)!.push(test);
       });
 
-      // Create data points for each date-ISP combination
-      testsByDateAndISP.forEach((ispMap, date) => {
-        ispMap.forEach((tests, ispName) => {
-          if (tests.length > 0) {
-            // Calculate averages for this date-ISP combination
-            const totals = tests.reduce(
-              (acc: any, test: any) => ({
-                download: acc.download + test.download,
-                upload: acc.upload + test.upload,
-                ping: acc.ping + test.ping,
-              }),
-              { download: 0, upload: 0, ping: 0 }
-            );
+      // Check if any filters are applied (excluding date range)
+      const hasFilters = unit || subunit || isp || section || timeOfDay;
 
-            const avgDownload = totals.download / tests.length;
-            const avgUpload = totals.upload / tests.length;
-            const avgPing = totals.ping / tests.length;
+      // If filters are applied or granular mode is requested, return individual test data
+      if (hasFilters || granular) {
+        filteredTests.forEach((test: any) => {
+          const testDate = format(test.timestamp, 'yyyy-MM-dd');
+          const testISP = test.isp || 'Unknown';
 
-            // Only add if we have meaningful data
-            if (avgDownload > 0 || avgUpload > 0 || avgPing > 0) {
-              detailedTrendData.push({
-                date,
-                office: `${office.unitOffice}${office.subUnitOffice ? ' > ' + office.subUnitOffice : ''}`,
-                unit: office.unitOffice,
-                subunit: office.subUnitOffice || undefined,
-                section: office.section || undefined,
-                isp: ispName,
-                timeOfDay: timeOfDay || undefined,
-                avgDownload,
-                avgUpload,
-                avgPing,
-                testCount: tests.length,
-              });
-            }
-          }
+          detailedTrendData.push({
+            date: testDate,
+            office: `${office.unitOffice}${office.subUnitOffice ? ' > ' + office.subUnitOffice : ''}`,
+            unit: office.unitOffice,
+            subunit: office.subUnitOffice || undefined,
+            section: office.section || undefined,
+            isp: testISP,
+            timeOfDay: timeOfDay || undefined,
+            avgDownload: test.download, // Use actual values, not averages
+            avgUpload: test.upload,
+            avgPing: test.ping,
+            testCount: 1, // Individual test
+            timestamp: test.timestamp.toISOString(),
+            testId: test.id,
+          });
         });
-      });
+      } else {
+        // No filters applied - return aggregated data by date and ISP
+        testsByDateAndISP.forEach((ispMap, date) => {
+          ispMap.forEach((tests, ispName) => {
+            if (tests.length > 0) {
+              // Calculate averages for this date-ISP combination
+              const totals = tests.reduce(
+                (acc: any, test: any) => ({
+                  download: acc.download + test.download,
+                  upload: acc.upload + test.upload,
+                  ping: acc.ping + test.ping,
+                }),
+                { download: 0, upload: 0, ping: 0 }
+              );
+
+              const avgDownload = totals.download / tests.length;
+              const avgUpload = totals.upload / tests.length;
+              const avgPing = totals.ping / tests.length;
+
+              // Only add if we have meaningful data
+              if (avgDownload > 0 || avgUpload > 0 || avgPing > 0) {
+                detailedTrendData.push({
+                  date,
+                  office: `${office.unitOffice}${office.subUnitOffice ? ' > ' + office.subUnitOffice : ''}`,
+                  unit: office.unitOffice,
+                  subunit: office.subUnitOffice || undefined,
+                  section: office.section || undefined,
+                  isp: ispName,
+                  timeOfDay: timeOfDay || undefined,
+                  avgDownload,
+                  avgUpload,
+                  avgPing,
+                  testCount: tests.length,
+                });
+              }
+            }
+          });
+        });
+      }
     }); // Sort detailed data by date
     detailedTrendData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 

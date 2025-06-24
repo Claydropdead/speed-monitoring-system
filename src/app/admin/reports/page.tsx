@@ -103,8 +103,7 @@ export default function ReportsPage() {
       console.error('Error fetching offices:', error);
       setOffices([]);
     }
-  };
-  const fetchTrendData = async () => {
+  };  const fetchTrendData = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -115,6 +114,13 @@ export default function ReportsPage() {
       if (filters.timeOfDay) params.append('timeOfDay', filters.timeOfDay);
       params.append('startDate', filters.startDate);
       params.append('endDate', filters.endDate);
+      
+      // Add granular flag when any filters are applied
+      const hasFilters = filters.unit || filters.subunit || filters.isp || filters.section || filters.timeOfDay;
+      if (hasFilters) {
+        params.append('granular', 'true');
+      }
+      
       const response = await fetch(`/api/reports/trends?${params}`);
       if (response.ok) {
         const data = await response.json();
@@ -128,9 +134,12 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }; // Data processing - group by office for line connections when All Units selected
+  };  // Data processing - group by office for line connections when All Units selected
   const processedData = Array.isArray(trendData)
     ? (() => {
+        // Check if we have granular data (individual test results)
+        const hasGranularData = trendData.some((item: TrendData) => item.testCount === 1);
+        
         // If no specific unit is selected (All Units), group by office for connected lines
         if (!filters.unit) {
           const officeGroups = trendData.reduce((groups: any, item: TrendData) => {
@@ -153,7 +162,18 @@ export default function ReportsPage() {
           );
         }
 
-        // If a specific unit is selected, aggregate by date
+        // If a specific unit is selected and we have granular data, don't aggregate
+        if (hasGranularData) {
+          return trendData
+            .map((item: TrendData) => ({
+              ...item,
+              count: item.testCount || 1,
+              details: [item],
+            }))
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        }
+
+        // If a specific unit is selected and we have aggregated data, aggregate by date
         return trendData
           .reduce((acc: any[], item: TrendData) => {
             const existing = acc.find(d => d.date === item.date);
@@ -220,16 +240,15 @@ export default function ReportsPage() {
   const yPingScale = (value: number) =>
     chartHeight -
     padding.bottom -
-    (value / maxPingScale) * (chartHeight - padding.top - padding.bottom);
-  // Event handlers
+    (value / maxPingScale) * (chartHeight - padding.top - padding.bottom);  // Event handlers
   const handleMouseMove = (event: React.MouseEvent<SVGCircleElement>, index: number) => {
     const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
     if (rect && sortedData[index]) {
       const dataPoint = sortedData[index] as TrendData & { count: number; details: TrendData[] };
 
-      // Get page coordinates for tooltip positioning
-      const pageX = event.pageX;
-      const pageY = event.pageY;
+      // Get page coordinates for tooltip positioning - use clientX/Y for more accurate positioning
+      const pageX = event.clientX;
+      const pageY = event.clientY;
 
       const units = [...new Set(dataPoint.details?.map(d => d.unit).filter(Boolean) || [])];
       const subunits = [...new Set(dataPoint.details?.map(d => d.subunit).filter(Boolean) || [])];
@@ -274,7 +293,6 @@ export default function ReportsPage() {
       ...new Set(filteredOffices.map((office: Office) => office.subUnitOffice).filter(Boolean)),
     ];
   };
-
   // Memoized available sections based on current unit and subunit selection
   const availableSections = useMemo(() => {
     if (!Array.isArray(offices)) return [];
@@ -292,23 +310,39 @@ export default function ReportsPage() {
     }
 
     const sections = new Set<string>();
+    
+    // Always add "General" as the first section option
+    sections.add('General');
+    
     filteredOffices.forEach((office: Office) => {
       if (office.sectionISPs) {
         try {
           const sectionISPsObj = JSON.parse(office.sectionISPs);
           if (typeof sectionISPsObj === 'object') {
-            Object.keys(sectionISPsObj).forEach(section => sections.add(section));
+            Object.keys(sectionISPsObj).forEach(section => {
+              // Don't add "General" again if it's already in sectionISPs
+              if (section !== 'General') {
+                sections.add(section);
+              }
+            });
           }
         } catch (e) {
           // Ignore parsing errors
         }
       }
-      if (office.section) {
+      if (office.section && office.section !== 'General') {
         sections.add(office.section);
       }
     });
-    return Array.from(sections).sort();
-  }, [offices, filters.unit, filters.subunit]); // Memoized available ISPs based on current selections and trend data
+    
+    // Convert to array and sort, but keep "General" first
+    const sectionsArray = Array.from(sections);
+    return sectionsArray.sort((a, b) => {
+      if (a === 'General') return -1;
+      if (b === 'General') return 1;
+      return a.localeCompare(b);
+    });
+  }, [offices, filters.unit, filters.subunit]);// Memoized available ISPs based on current selections and trend data
   const availableISPs = useMemo(() => {
     // Don't show ISPs when "All Units" is selected (no specific unit selected)
     if (!filters.unit) return [];
@@ -320,50 +354,112 @@ export default function ReportsPage() {
       if (filters.unit && office.unitOffice !== filters.unit) return false;
       if (filters.subunit && office.subUnitOffice !== filters.subunit) return false;
       return true;
-    });
-
-    relevantOffices.forEach(office => {
-      // Add general ISP
-      if (office.isp && office.isp.trim()) {
-        ispSet.add(office.isp.trim());
-      }
-
-      // Add ISPs from isps field (JSON array)
-      if (office.isps) {
-        try {
-          const ispArray = JSON.parse(office.isps);
-          if (Array.isArray(ispArray)) {
-            ispArray.forEach(isp => {
-              if (typeof isp === 'string' && isp.trim()) {
-                ispSet.add(isp.trim());
-              }
-            });
+    });    relevantOffices.forEach(office => {
+      // If "General" section is selected, show general ISPs
+      if (filters.section === 'General') {
+        // Add general ISP with (General) suffix to match speed test data
+        if (office.isp && office.isp.trim()) {
+          const baseISP = office.isp.trim();
+          // Add the ISP with (General) suffix if it doesn't already have it
+          if (!baseISP.includes('(General)')) {
+            ispSet.add(`${baseISP} (General)`);
+          } else {
+            ispSet.add(baseISP);
           }
-        } catch (e) {
-          console.warn('Invalid ISPs JSON:', office.isps);
+        }
+
+        // Add ISPs from isps field (JSON array) - these are general ISPs
+        if (office.isps) {
+          try {
+            const ispArray = JSON.parse(office.isps);
+            if (Array.isArray(ispArray)) {
+              ispArray.forEach(isp => {
+                if (typeof isp === 'string' && isp.trim()) {
+                  const baseISP = isp.trim();
+                  // Add the ISP with (General) suffix if it doesn't already have it
+                  if (!baseISP.includes('(General)')) {
+                    ispSet.add(`${baseISP} (General)`);
+                  } else {
+                    ispSet.add(baseISP);
+                  }
+                }
+              });
+            }
+          } catch (e) {
+            console.warn('Invalid ISPs JSON:', office.isps);
+          }
+        }
+      } else if (filters.section) {
+        // Specific section selected - show section-specific ISPs only
+        if (office.sectionISPs) {
+          try {
+            const sectionISPsObj = JSON.parse(office.sectionISPs);
+            if (typeof sectionISPsObj === 'object' && sectionISPsObj[filters.section]) {
+              const sectionISP = sectionISPsObj[filters.section];
+              if (typeof sectionISP === 'string' && sectionISP.trim()) {
+                ispSet.add(sectionISP.trim());
+              }
+            }
+          } catch (e) {
+            console.warn('Invalid sectionISPs JSON:', office.sectionISPs);
+          }
+        }      } else {
+        // No section selected - show all available ISPs (general + section-specific)
+        
+        // Add general ISP with (General) suffix
+        if (office.isp && office.isp.trim()) {
+          const baseISP = office.isp.trim();
+          if (!baseISP.includes('(General)')) {
+            ispSet.add(`${baseISP} (General)`);
+          } else {
+            ispSet.add(baseISP);
+          }
+        }
+
+        // Add ISPs from isps field (JSON array) - these are general ISPs
+        if (office.isps) {
+          try {
+            const ispArray = JSON.parse(office.isps);
+            if (Array.isArray(ispArray)) {
+              ispArray.forEach(isp => {
+                if (typeof isp === 'string' && isp.trim()) {
+                  const baseISP = isp.trim();
+                  if (!baseISP.includes('(General)')) {
+                    ispSet.add(`${baseISP} (General)`);
+                  } else {
+                    ispSet.add(baseISP);
+                  }
+                }
+              });
+            }
+          } catch (e) {
+            console.warn('Invalid ISPs JSON:', office.isps);
+          }
+        }
+
+        // Add all section-specific ISPs as well
+        if (office.sectionISPs) {
+          try {
+            const sectionISPsObj = JSON.parse(office.sectionISPs);
+            if (typeof sectionISPsObj === 'object') {
+              Object.values(sectionISPsObj).forEach(isp => {
+                if (typeof isp === 'string' && isp.trim()) {
+                  ispSet.add(isp.trim());
+                }
+              });
+            }
+          } catch (e) {
+            console.warn('Invalid sectionISPs JSON:', office.sectionISPs);
+          }
         }
       }
-
-      // Add section-specific ISPs
-      if (office.sectionISPs) {
-        try {
-          const sectionISPsObj = JSON.parse(office.sectionISPs);
-          if (typeof sectionISPsObj === 'object') {
-            Object.values(sectionISPsObj).forEach(isp => {
-              if (typeof isp === 'string' && isp.trim()) {
-                ispSet.add(isp.trim());
-              }
-            });
-          }
-        } catch (e) {
-          console.warn('Invalid sectionISPs JSON:', office.sectionISPs);
-        }
-      }
     });
 
-    // Then, add ISPs from trend data (speed test results)
+    // Then, add ISPs from trend data (speed test results) that match current filters
     if (Array.isArray(trendData) && trendData.length > 0) {
       let filteredTrendData = trendData;
+      
+      // Filter by unit and subunit
       if (filters.unit) {
         filteredTrendData = filteredTrendData.filter(
           (item: TrendData) => item.unit === filters.unit
@@ -373,12 +469,19 @@ export default function ReportsPage() {
         filteredTrendData = filteredTrendData.filter(
           (item: TrendData) => item.subunit === filters.subunit
         );
-      }
-      if (filters.section) {
+      }      // Filter by section if selected
+      if (filters.section === 'General') {
+        // For "General" section, include ISPs with "(General)" indicator
+        filteredTrendData = filteredTrendData.filter(
+          (item: TrendData) => item.isp && item.isp.includes('(General)')
+        );
+      } else if (filters.section) {
+        // For specific sections, include only ISPs that contain the section name in parentheses
         filteredTrendData = filteredTrendData.filter(
           (item: TrendData) => item.isp && item.isp.includes(`(${filters.section})`)
         );
       }
+      // If no section is selected, include all trend data
 
       // Extract unique ISPs from filtered data
       filteredTrendData.forEach((item: TrendData) => {
@@ -390,15 +493,13 @@ export default function ReportsPage() {
 
     // Convert set to sorted array
     return Array.from(ispSet).sort();
-  }, [offices, trendData, filters.unit, filters.subunit, filters.section]);
-
-  // Reset dependent filters when parent filter changes
+  }, [offices, trendData, filters.unit, filters.subunit, filters.section]);  // Reset dependent filters when parent filter changes
   useEffect(() => {
     setFilters(prev => ({
       ...prev,
       subunit: prev.unit ? prev.subunit : '',
       section: prev.unit && prev.subunit ? prev.section : '',
-      isp: '',
+      isp: '', // Reset ISP when unit changes
     }));
   }, [filters.unit]);
 
@@ -406,14 +507,14 @@ export default function ReportsPage() {
     setFilters(prev => ({
       ...prev,
       section: prev.subunit ? prev.section : '',
-      isp: '',
+      isp: '', // Reset ISP when subunit changes
     }));
   }, [filters.subunit]);
 
   useEffect(() => {
     setFilters(prev => ({
       ...prev,
-      isp: '',
+      isp: '', // Reset ISP when section changes (different ISPs available)
     }));
   }, [filters.section]);
 
@@ -751,16 +852,15 @@ export default function ReportsPage() {
                       </svg>
                       Unit
                     </span>
-                  </label>
-                  <select
+                  </label>                  <select
                     value={filters.unit}
                     onChange={e => {
                       setFilters(prev => ({
                         ...prev,
                         unit: e.target.value,
                         subunit: '',
-                        isp: '',
-                        section: '',
+                        section: '', // Reset section when unit changes
+                        isp: '', // Reset ISP when unit changes
                       }));
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -791,15 +891,14 @@ export default function ReportsPage() {
                       </svg>
                       Subunit
                     </span>
-                  </label>{' '}
-                  <select
+                  </label>{' '}                  <select
                     value={filters.subunit}
                     onChange={e => {
                       setFilters(prev => ({
                         ...prev,
                         subunit: e.target.value,
-                        isp: '',
-                        section: '',
+                        section: '', // Reset section when subunit changes
+                        isp: '', // Reset ISP when subunit changes
                       }));
                     }}
                     disabled={!filters.unit}
@@ -812,6 +911,35 @@ export default function ReportsPage() {
                           {subunit}
                         </option>
                       ))}
+                  </select>
+                </div>                {/* Section Filter */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    <span className="flex items-center">
+                      <svg
+                        className="w-4 h-4 mr-2 text-green-500"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+                      </svg>
+                      Section
+                    </span>
+                  </label>
+                  <select
+                    value={filters.section}
+                    onChange={e =>
+                      setFilters(prev => ({ ...prev, section: e.target.value, isp: '' }))
+                    }
+                    disabled={!filters.unit}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors disabled:bg-gray-50 disabled:text-gray-400"
+                  >
+                    <option value="">{filters.unit ? 'All Sections' : 'Select unit first'}</option>
+                    {availableSections.map(section => (
+                      <option key={section} value={section}>
+                        {section}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -843,37 +971,6 @@ export default function ReportsPage() {
                     {availableISPs.map(isp => (
                       <option key={isp} value={isp}>
                         {isp}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Section Filter */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    <span className="flex items-center">
-                      <svg
-                        className="w-4 h-4 mr-2 text-green-500"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
-                      </svg>
-                      Section
-                    </span>
-                  </label>
-                  <select
-                    value={filters.section}
-                    onChange={e =>
-                      setFilters(prev => ({ ...prev, section: e.target.value, isp: '' }))
-                    }
-                    disabled={!filters.unit}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors disabled:bg-gray-50 disabled:text-gray-400"
-                  >
-                    <option value="">{filters.unit ? 'All Sections' : 'Select unit first'}</option>
-                    {availableSections.map(section => (
-                      <option key={section} value={section}>
-                        {section}
                       </option>
                     ))}
                   </select>
@@ -1016,9 +1113,8 @@ export default function ReportsPage() {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {' '}
-                      {/* Chart Container */}
-                      <div className={`relative bg-gray-50 rounded-lg flex justify-center w-full overflow-hidden ${isFullScreen ? 'p-4' : 'p-2'}`}>
+                      {' '}                      {/* Chart Container */}
+                      <div className={`relative bg-gray-50 rounded-lg flex justify-center w-full ${isFullScreen ? 'p-4' : 'p-2'}`}>
                         <div className="w-full max-w-none flex justify-center">
                           <svg
                             width={chartWidth}
@@ -1242,72 +1338,96 @@ export default function ReportsPage() {
 
                               return (
                                 <g key={`points-${index}`}>
-                                  {' '}
-                                  {/* Download circle */}
+                                  {' '}                                  {/* Download circle */}
                                   {visibility.download && (
-                                    <circle
-                                      cx={x}
-                                      cy={downloadY}
-                                      r="4"
-                                      fill="#2563eb"
-                                      stroke="white"
-                                      strokeWidth="2"
-                                      className="cursor-pointer transition-all hover:opacity-80"
-                                      style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-                                      onMouseEnter={e => {
-                                        e.currentTarget.setAttribute('r', '6');
-                                        handleMouseMove(e, index);
-                                      }}
-                                      onMouseMove={e => handleMouseMove(e, index)}
-                                      onMouseLeave={e => {
-                                        e.currentTarget.setAttribute('r', '4');
-                                        handleMouseLeave();
-                                      }}
-                                    />
-                                  )}
-                                  {/* Upload circle */}
+                                    <g>
+                                      {/* Invisible larger circle for easier hovering */}
+                                      <circle
+                                        cx={x}
+                                        cy={downloadY}
+                                        r="12"
+                                        fill="transparent"
+                                        className="cursor-pointer"
+                                        onMouseEnter={e => {
+                                          handleMouseMove(e, index);
+                                        }}
+                                        onMouseMove={e => handleMouseMove(e, index)}
+                                        onMouseLeave={e => {
+                                          handleMouseLeave();
+                                        }}
+                                      />
+                                      {/* Visible circle */}
+                                      <circle
+                                        cx={x}
+                                        cy={downloadY}
+                                        r="4"
+                                        fill="#2563eb"
+                                        stroke="white"
+                                        strokeWidth="2"
+                                        className="pointer-events-none transition-all"
+                                        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                                      />
+                                    </g>
+                                  )}                                  {/* Upload circle */}
                                   {visibility.upload && (
-                                    <circle
-                                      cx={x}
-                                      cy={uploadY}
-                                      r="4"
-                                      fill="#16a34a"
-                                      stroke="white"
-                                      strokeWidth="2"
-                                      className="cursor-pointer transition-all hover:opacity-80"
-                                      style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-                                      onMouseEnter={e => {
-                                        e.currentTarget.setAttribute('r', '6');
-                                        handleMouseMove(e, index);
-                                      }}
-                                      onMouseMove={e => handleMouseMove(e, index)}
-                                      onMouseLeave={e => {
-                                        e.currentTarget.setAttribute('r', '4');
-                                        handleMouseLeave();
-                                      }}
-                                    />
-                                  )}
-                                  {/* Ping circle */}
+                                    <g>
+                                      {/* Invisible larger circle for easier hovering */}
+                                      <circle
+                                        cx={x}
+                                        cy={uploadY}
+                                        r="12"
+                                        fill="transparent"
+                                        className="cursor-pointer"
+                                        onMouseEnter={e => {
+                                          handleMouseMove(e, index);
+                                        }}
+                                        onMouseMove={e => handleMouseMove(e, index)}
+                                        onMouseLeave={e => {
+                                          handleMouseLeave();
+                                        }}
+                                      />
+                                      {/* Visible circle */}
+                                      <circle
+                                        cx={x}
+                                        cy={uploadY}
+                                        r="4"
+                                        fill="#16a34a"
+                                        stroke="white"
+                                        strokeWidth="2"
+                                        className="pointer-events-none transition-all"
+                                        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                                      />
+                                    </g>
+                                  )}                                  {/* Ping circle */}
                                   {visibility.ping && (
-                                    <circle
-                                      cx={x}
-                                      cy={pingY}
-                                      r="4"
-                                      fill="#ea580c"
-                                      stroke="white"
-                                      strokeWidth="2"
-                                      className="cursor-pointer transition-all hover:opacity-80"
-                                      style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-                                      onMouseEnter={e => {
-                                        e.currentTarget.setAttribute('r', '6');
-                                        handleMouseMove(e, index);
-                                      }}
-                                      onMouseMove={e => handleMouseMove(e, index)}
-                                      onMouseLeave={e => {
-                                        e.currentTarget.setAttribute('r', '4');
-                                        handleMouseLeave();
-                                      }}
-                                    />
+                                    <g>
+                                      {/* Invisible larger circle for easier hovering */}
+                                      <circle
+                                        cx={x}
+                                        cy={pingY}
+                                        r="12"
+                                        fill="transparent"
+                                        className="cursor-pointer"
+                                        onMouseEnter={e => {
+                                          handleMouseMove(e, index);
+                                        }}
+                                        onMouseMove={e => handleMouseMove(e, index)}
+                                        onMouseLeave={e => {
+                                          handleMouseLeave();
+                                        }}
+                                      />
+                                      {/* Visible circle */}
+                                      <circle
+                                        cx={x}
+                                        cy={pingY}
+                                        r="4"
+                                        fill="#ea580c"
+                                        stroke="white"
+                                        strokeWidth="2"
+                                        className="pointer-events-none transition-all"
+                                        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                                      />
+                                    </g>
                                   )}
                                 </g>
                               );
@@ -1444,17 +1564,19 @@ export default function ReportsPage() {
                         </div>
                       </div>
                     </div>
-                  )}{' '}
-                  {/* Enhanced Tooltip */}
+                  )}{' '}                  {/* Enhanced Tooltip */}
                   {tooltip.visible && (
                     <div
-                      className="fixed bg-white border border-gray-200 rounded-xl p-4 shadow-2xl pointer-events-none z-50 min-w-[320px]"
+                      className="fixed bg-white border border-gray-200 rounded-xl p-4 shadow-2xl pointer-events-none z-[9999] min-w-[320px]"
                       style={{
                         left: Math.min(
-                          tooltip.x + 10,
+                          tooltip.x + 15,
                           (typeof window !== 'undefined' ? window.innerWidth : 1200) - 340
                         ),
-                        top: Math.max(tooltip.y - 180, 10),
+                        top: Math.max(tooltip.y - 200, 10),
+                        transform: tooltip.x > (typeof window !== 'undefined' ? window.innerWidth / 2 : 600) 
+                          ? 'translateX(-100%)' 
+                          : 'none'
                       }}
                     >
                       {/* Header */}

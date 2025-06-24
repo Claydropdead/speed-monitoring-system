@@ -21,6 +21,7 @@ import {
   Clock,
   AlertTriangle,
 } from 'lucide-react';
+import { Footer } from '@/components/footer';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -388,6 +389,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <main className="py-8">
           <div className="px-4 sm:px-6 lg:px-8">{children}</div>
         </main>
+
+        <Footer variant="dashboard" />
       </div>
 
       {/* Auto-logout warning modal */}

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Activity, Zap, Users, Building } from 'lucide-react';
+import { Footer } from '@/components/footer';
 
 export default function Home() {
   return (
@@ -78,6 +79,8 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      <Footer variant="landing" />
     </div>
   );
 }
