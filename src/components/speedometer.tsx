@@ -129,6 +129,7 @@ The speed test was stopped to prevent incorrect data collection.
 Please select the correct ISP that matches your actual connection.`;
         setIspValidationError(errorMessage);
         setIsValidatingISP(false);
+        setIsTestCompleted(true); // Mark test as completed to prevent re-triggering
         handleErrorRef.current?.(errorMessage, {
           type: 'isp_mismatch',
           selectedISP,
@@ -149,6 +150,7 @@ Please select the correct ISP that matches your actual connection.`;
     } catch (error) {
       console.error('❌ Speedometer: ISP pre-validation failed:', error);
       setIsValidatingISP(false);
+      setIsTestCompleted(true); // Mark test as completed to prevent re-triggering
       const errorMessage = 'Failed to validate ISP before starting test. Please try again.';
       setIspValidationError(errorMessage);
       handleErrorRef.current?.(errorMessage, { type: 'validation_error' });
@@ -295,7 +297,7 @@ Please select the correct ISP that matches your actual connection.`;
     };
   };
   useEffect(() => {
-    if (!isRunning || isTestCompleted || eventSourceRef) {
+    if (!isRunning || isTestCompleted || eventSourceRef || isValidatingISP || ispValidationError) {
       return;
     }
 
@@ -306,7 +308,23 @@ Please select the correct ISP that matches your actual connection.`;
     } else {
       startSpeedTest();
     }
-  }, [isRunning, officeId]);
+  }, [isRunning, officeId, isValidatingISP, ispValidationError]);
+
+  // Reset validation state when ISP or section changes
+  useEffect(() => {
+    setIspValidationError(null);
+    setIsValidatingISP(false);
+    setIsTestCompleted(false);
+    setHasEverStarted(false);
+    setFinalResult(null);
+    setProgress({
+      stage: 'connecting',
+      download: 0,
+      upload: 0,
+      ping: 0,
+      progress: 0,
+    });
+  }, [selectedISP, selectedSection]);
 
   // Cleanup effect to close EventSource when component unmounts or isRunning becomes false
   useEffect(() => {
