@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { spawn } from 'child_process';
-import { validateISPMatch } from '@/lib/speedtest';
+import { validateISPMatch, detectCurrentISP } from '@/lib/speedtest';
 import { normalizeISPName } from '@/lib/isp-utils';
 
 // Track active speedtest requests
@@ -31,14 +31,15 @@ export async function GET(request: NextRequest) {
   if (!session) {
     console.log(`❌ [${requestId}] Unauthorized request - no session`);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  const { searchParams } = new URL(request.url);
+  }  const { searchParams } = new URL(request.url);
   const officeId = searchParams.get('officeId');
   const selectedISP = searchParams.get('selectedISP');
   const selectedSection = searchParams.get('selectedSection');
+  const useValidatedISP = searchParams.get('useValidatedISP') === 'true';
 
+  console.log(`🔗 [${requestId}] Full request URL: ${request.url}`);
   console.log(
-    `[${requestId}] Office ID: ${officeId}, Selected ISP: ${selectedISP}, Selected Section: ${selectedSection}`
+    `📋 [${requestId}] Parsed params - Office ID: ${officeId}, Selected ISP: ${selectedISP}, Selected Section: ${selectedSection}, Use Validated ISP: ${useValidatedISP}`
   );
 
   // Check permissions
@@ -62,10 +63,24 @@ export async function GET(request: NextRequest) {
   const encoder = new TextEncoder();
   let isTestComplete = false;
   let isControllerClosed = false;
-  let testStartTime: number;
+  let testStartTime: number;  const stream = new ReadableStream({
+    async start(controller) {
+      // Only detect ISP if not using validated ISP from pre-validation
+      let initialDetectedISP: string | null = null;
+      if (!useValidatedISP) {
+        try {
+          console.log(`🌐 [${requestId}] Detecting initial ISP for preservation...`);
+          initialDetectedISP = await detectCurrentISP();
+          console.log(`🌐 [${requestId}] Initial ISP detected: "${initialDetectedISP}"`);
+        } catch (error) {
+          console.log(`⚠️ [${requestId}] Failed to detect initial ISP:`, error);
+        }
+      } else {
+        // Use the selected ISP as the validated ISP (it was already validated in pre-validation)
+        initialDetectedISP = selectedISP;
+        console.log(`🌐 [${requestId}] Using validated ISP from pre-validation: "${initialDetectedISP}"`);
+      }
 
-  const stream = new ReadableStream({
-    start(controller) {
       const safeEnqueue = (data: string) => {
         if (!isControllerClosed) {
           try {
@@ -275,18 +290,43 @@ export async function GET(request: NextRequest) {
                 // Log Ookla shareable URL if available
                 if (result.result?.url) {
                   console.log(`🔗 [${requestId}] Ookla Result URL: ${result.result.url}`);
-                } // Store final result for database save
-                const detectedISP =
-                  result.isp ||
-                  result.interface?.externalIsp ||
-                  result.client?.isp ||
-                  'Unknown ISP';
-                console.log(`🌐 [${requestId}] Detected ISP: "${detectedISP}"`);
+                }                // Store final result for database save
+                // Use the initially detected ISP instead of Ookla's detection to maintain consistency
+                let detectedISP: string;
+                
+                if (useValidatedISP && selectedISP) {
+                  // Use the selected ISP that was already validated in pre-validation
+                  detectedISP = selectedISP;
+                  console.log(`🌐 [${requestId}] Using validated selected ISP: "${selectedISP}"`);
+                } else {
+                  // Fallback to initial detection or Ookla detection
+                  detectedISP = initialDetectedISP || 
+                    result.isp ||
+                    result.interface?.externalIsp ||
+                    result.client?.isp ||
+                    'Unknown ISP';
+                  console.log(`🌐 [${requestId}] Using initial detected ISP: "${initialDetectedISP}"`);
+                }
+                
+                console.log(`🌐 [${requestId}] Ookla detected ISP: "${result.isp}"`);
+                console.log(`🌐 [${requestId}] Final ISP used: "${detectedISP}"`);
 
-                // Validate ISP if selectedISP is provided
+                // Validate ISP if selectedISP is provided (but skip if using validated ISP)
                 let ispValidation;
-                if (selectedISP) {
+                if (selectedISP && !useValidatedISP) {
+                  // Only validate if we're not using the already-validated ISP
                   ispValidation = validateISPMatch(selectedISP, detectedISP);
+                  console.log(`🔍 [${requestId}] ISP validation result:`, ispValidation);
+                } else if (useValidatedISP) {
+                  // Create a successful validation result since it was already validated
+                  ispValidation = {
+                    isMatch: true,
+                    confidence: 100,
+                    detectedCanonical: normalizeISPName(detectedISP),
+                    selectedCanonical: normalizeISPName(selectedISP!),
+                    allowProceed: true
+                  };
+                  console.log(`✅ [${requestId}] Using pre-validated ISP, skipping re-validation`);
                 }
 
                 const finalResult = {
