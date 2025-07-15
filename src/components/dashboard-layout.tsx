@@ -225,7 +225,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           { name: 'Monitoring', href: '/admin/monitoring', icon: Monitor },
           { name: 'Offices', href: '/admin/offices', icon: Building },
           { name: 'Users', href: '/admin/users', icon: Users },
-          { name: 'Reports', href: '/admin/reports', icon: FileText },
+          { name: 'Analytics', href: '/admin/reports', icon: FileText },
           { name: 'Settings', href: '/admin/settings', icon: Settings },
         ]
       : [{ name: 'Settings', href: '/settings', icon: Settings }]),

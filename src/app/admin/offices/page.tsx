@@ -16,6 +16,7 @@ import {
   X,
   Eye,
   EyeOff,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface Office {
@@ -43,6 +44,7 @@ interface NewOffice {
   location: string;
   isp: string; // Primary ISP
   isps: string[]; // Array of all ISPs
+  ispDescriptions: string[]; // Array of ISP descriptions
   description: string;
   userEmail: string;
   userName: string;
@@ -201,6 +203,7 @@ export default function AdminOfficesPage() {
     location: '',
     isp: '',
     isps: [''], // Start with one empty ISP
+    ispDescriptions: ['Primary Connection'], // Start with default description
     description: '',
     userEmail: '',
     userName: '',
@@ -258,31 +261,49 @@ export default function AdminOfficesPage() {
     setEditFormData({ ...editFormData, subUnitOffice: subUnit });
   };
 
-  // Helper functions for managing ISPs
+  // Helper functions for managing ISPs with descriptions
   const addISPField = () => {
-    setFormData({ ...formData, isps: [...formData.isps, ''] });
+    setFormData({
+      ...formData,
+      isps: [...formData.isps, ''],
+      ispDescriptions: [...formData.ispDescriptions, 'Secondary Connection']
+    });
   };
 
   const removeISPField = (index: number) => {
     if (formData.isps.length > 1) {
       const newISPs = formData.isps.filter((_, i) => i !== index);
-      setFormData({ ...formData, isps: newISPs });
+      const newDescriptions = formData.ispDescriptions.filter((_, i) => i !== index);
+      setFormData({
+        ...formData,
+        isps: newISPs,
+        ispDescriptions: newDescriptions,
+        isp: index === 0 ? (newISPs[0] || '') : formData.isp,
+      });
     }
   };
 
   const updateISPField = (index: number, value: string) => {
     const newISPs = [...formData.isps];
     newISPs[index] = value;
-    setFormData({ ...formData, isps: newISPs });
+    setFormData({
+      ...formData,
+      isps: newISPs,
+      isp: index === 0 ? value : formData.isp,
+    });
+  };
 
-    // Update primary ISP to be the first non-empty ISP
-    if (index === 0 || !formData.isp) {
-      setFormData({
-        ...formData,
-        isps: newISPs,
-        isp: value || newISPs.find(isp => isp.trim()) || '',
-      });
-    }
+  const updateISPDescription = (index: number, value: string) => {
+    const newDescriptions = [...formData.ispDescriptions];
+    newDescriptions[index] = value;
+    setFormData({
+      ...formData,
+      ispDescriptions: newDescriptions
+    });
+  };
+
+  const getISPDescription = (index: number): string => {
+    return formData.ispDescriptions[index] || '';
   };
 
   // Helper functions for edit form ISPs
@@ -323,6 +344,35 @@ export default function AdminOfficesPage() {
       }
     }
     return [editFormData.isp || ''];
+  };
+
+  // Utility function to find duplicate ISPs (for duplicate warning display)
+  const findDuplicateISPs = (isps: string[]): Array<{name: string, count: number}> => {
+    const ispCounts = new Map<string, number>();
+    
+    isps.forEach(isp => {
+      if (isp.trim()) {
+        // Check if ISP already has a description in parentheses
+        const hasDescription = isp.includes('(') && isp.includes(')');
+        
+        if (hasDescription) {
+          // ISP already has description, don't flag as duplicate
+          // e.g., "PLDT (Primary Connection)" and "PLDT (Backup Line)" are different
+          return;
+        } else {
+          // Only flag ISPs without descriptions as potential duplicates
+          const baseName = isp.trim().toUpperCase();
+          if (baseName) {
+            ispCounts.set(baseName, (ispCounts.get(baseName) || 0) + 1);
+          }
+        }
+      }
+    });
+    
+    // Return ISPs that appear more than once WITHOUT descriptions
+    return Array.from(ispCounts.entries())
+      .filter(([_, count]) => count > 1)
+      .map(([name, count]) => ({ name, count }));
   };
 
   // Helper functions for managing sections and advanced settings
@@ -442,8 +492,37 @@ export default function AdminOfficesPage() {
     ) {
       setError('Please fill in all required fields and at least one ISP');
       return;
-    }    try {
-      setSubmitting(true);      // Sanitize sectionISPs to remove corrupted/invalid entries
+    }
+
+    try {
+      setSubmitting(true);
+
+      // Create unique ISP identifiers by combining name with description
+      const uniqueISPs = filledISPs.map((isp, index) => {
+        const description = formData.ispDescriptions[index]?.trim() || '';
+        if (description) {
+          return `${isp} (${description})`;
+        }
+        return isp;
+      });
+
+      // Check if any ISPs still have duplicate final names
+      const uniqueISPCounts = new Map();
+      uniqueISPs.forEach(isp => {
+        uniqueISPCounts.set(isp, (uniqueISPCounts.get(isp) || 0) + 1);
+      });
+
+      const hasUniqueDuplicates = Array.from(uniqueISPCounts.values()).some(count => count > 1);
+      if (hasUniqueDuplicates) {
+        const duplicates = Array.from(uniqueISPCounts.entries())
+          .filter(([, count]) => count > 1)
+          .map(([isp]) => isp);
+        
+        setError(`Still have duplicate ISP identifiers: ${duplicates.join(', ')}. Please use different descriptions or ISP names.`);
+        return;
+      }
+
+      // Sanitize sectionISPs to remove corrupted/invalid entries
       let cleanSectionISPs: { [key: string]: string[] } = {};
       if (formData.sectionISPs && Object.keys(formData.sectionISPs).length > 0) {
         // Filter out invalid section names and empty ISP arrays
@@ -465,8 +544,8 @@ export default function AdminOfficesPage() {
 
       const officeData = {
         ...formData,
-        isp: filledISPs[0], // Set primary ISP to the first one
-        isps: JSON.stringify(filledISPs), // Store all ISPs as JSON
+        isp: uniqueISPs[0], // Set primary ISP to the first one with unique name
+        isps: JSON.stringify(uniqueISPs), // Store all unique ISPs as JSON
         sectionISPs: cleanSectionISPs, // Send clean object (API will stringify it)
       };
 
@@ -672,6 +751,7 @@ export default function AdminOfficesPage() {
       location: '',
       isp: '',
       isps: [''],
+      ispDescriptions: ['Primary Connection'],
       description: '',
       userEmail: '',
       userName: '',
@@ -954,54 +1034,82 @@ export default function AdminOfficesPage() {
                               </div>
                               {(formData.sectionISPs?.[section] || ['']).map(
                                 (sectionISP, ispIndex) => (
-                                  <div key={ispIndex} className="flex gap-1 items-center">
-                                    <span className="text-xs text-gray-400 w-6">
-                                      {ispIndex + 1}.
-                                    </span>
-                                    <input
-                                      type="text"
-                                      value={sectionISP}
-                                      onChange={e => {
-                                        const currentISPs = formData.sectionISPs?.[section] || [''];
-                                        const newISPs = [...currentISPs];
-                                        newISPs[ispIndex] = e.target.value;
-                                        updateSectionISPs(section, newISPs);
-                                      }}
-                                      placeholder={`ISP ${ispIndex + 1} name (e.g. GLOBE, SMART, PLDT)`}
-                                      className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-                                    />{' '}
-                                    <button
-                                      type="button"
-                                      onClick={e => {
-                                        e.preventDefault();
-                                        const currentISPs = formData.sectionISPs?.[section] || [''];
-                                        const newISPs = [...currentISPs, ''];
-                                        updateSectionISPs(section, newISPs);
-                                      }}
-                                      className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
-                                      title="Add another ISP"
-                                    >
-                                      + ISP
-                                    </button>
-                                    {(formData.sectionISPs?.[section] || ['']).length > 1 && (
+                                  <div key={ispIndex} className="space-y-2">
+                                    <div className="flex gap-1 items-center">
+                                      <span className="text-xs text-gray-400 w-6">
+                                        {ispIndex + 1}.
+                                      </span>
+                                      <input
+                                        type="text"
+                                        value={sectionISP}
+                                        onChange={e => {
+                                          const currentISPs = formData.sectionISPs?.[section] || [''];
+                                          const newISPs = [...currentISPs];
+                                          newISPs[ispIndex] = e.target.value;
+                                          updateSectionISPs(section, newISPs);
+                                        }}
+                                        placeholder={`ISP ${ispIndex + 1} name (e.g. PLDT, Globe, Smart)`}
+                                        className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                      />
                                       <button
                                         type="button"
                                         onClick={e => {
                                           e.preventDefault();
-                                          const currentISPs = formData.sectionISPs?.[section] || [
-                                            '',
-                                          ];
-                                          const newISPs = currentISPs.filter(
-                                            (_, i) => i !== ispIndex
-                                          );
+                                          const currentISPs = formData.sectionISPs?.[section] || [''];
+                                          const newISPs = [...currentISPs, ''];
                                           updateSectionISPs(section, newISPs);
                                         }}
-                                        className="px-2 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50"
-                                        title="Remove this ISP"
+                                        className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
+                                        title="Add another ISP"
                                       >
-                                        ×
+                                        + ISP
                                       </button>
-                                    )}
+                                      {(formData.sectionISPs?.[section] || ['']).length > 1 && (
+                                        <button
+                                          type="button"
+                                          onClick={e => {
+                                            e.preventDefault();
+                                            const currentISPs = formData.sectionISPs?.[section] || [
+                                              '',
+                                            ];
+                                            const newISPs = currentISPs.filter(
+                                              (_, i) => i !== ispIndex
+                                            );
+                                            updateSectionISPs(section, newISPs);
+                                          }}
+                                          className="px-2 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50"
+                                          title="Remove this ISP"
+                                        >
+                                          ×
+                                        </button>
+                                      )}
+                                    </div>
+                                    
+                                    {/* ISP Description Selection for Section ISPs */}
+                                    <div className="ml-6 space-y-1">
+                                      <div className="text-xs text-gray-500">
+                                        Select description for "{sectionISP.split(' (')[0] || 'this ISP'}":
+                                      </div>
+                                      <div className="flex flex-wrap gap-1">
+                                        {['Primary Connection', 'Backup Line', 'Main Office', 'Branch Office', 'Fiber', 'DSL', 'Wireless', 'Dedicated'].map(desc => (
+                                          <button
+                                            key={desc}
+                                            type="button"
+                                            onClick={() => {
+                                              const ispName = sectionISP.split(' (')[0] || sectionISP;
+                                              const newISPValue = `${ispName} (${desc})`;
+                                              const currentISPs = formData.sectionISPs?.[section] || [''];
+                                              const newISPs = [...currentISPs];
+                                              newISPs[ispIndex] = newISPValue;
+                                              updateSectionISPs(section, newISPs);
+                                            }}
+                                            className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded hover:bg-blue-100 hover:text-blue-700 border border-gray-200"
+                                          >
+                                            {desc}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
                                   </div>
                                 )
                               )}
@@ -1052,22 +1160,59 @@ export default function AdminOfficesPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       ISP Providers *
                     </label>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {formData.isps.map((isp, index) => (
-                        <div key={index} className="flex gap-2">
-                          <input
-                            type="text"
-                            value={isp}
-                            onChange={e => updateISPField(index, e.target.value)}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder={`Internet Service Provider ${index + 1}`}
-                            required={index === 0}
-                          />
+                        <div key={index} className="flex gap-2 items-start">
+                          <div className="flex-1 space-y-2">
+                            <input
+                              type="text"
+                              value={isp}
+                              onChange={e => updateISPField(index, e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder={`Internet Service Provider ${index + 1}`}
+                              required={index === 0}
+                            />
+                            <div className="space-y-1">
+                              <label className="text-xs text-gray-600">Connection Type:</label>
+                              <div className="flex flex-wrap gap-2">
+                                {[
+                                  index === 0 ? 'Primary Connection' : 'Secondary Connection',
+                                  'Backup Line',
+                                  'Main Office',
+                                  'Branch Office', 
+                                  'Fiber Connection',
+                                  'DSL Connection',
+                                  'Wireless Connection',
+                                  'Dedicated Line'
+                                ].map((option) => (
+                                  <button
+                                    key={option}
+                                    type="button"
+                                    onClick={() => updateISPDescription(index, option)}
+                                    className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                                      getISPDescription(index) === option
+                                        ? 'bg-blue-500 text-white border-blue-500'
+                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    {option}
+                                  </button>
+                                ))}
+                              </div>
+                              <input
+                                type="text"
+                                value={getISPDescription(index)}
+                                onChange={e => updateISPDescription(index, e.target.value)}
+                                className="w-full px-3 py-1 border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                placeholder="Or type custom description..."
+                              />
+                            </div>
+                          </div>
                           {formData.isps.length > 1 && (
                             <button
                               type="button"
                               onClick={() => removeISPField(index)}
-                              className="px-3 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md border border-red-300"
+                              className="px-3 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md border border-red-300 mt-0"
                             >
                               <X className="h-4 w-4" />
                             </button>
@@ -1604,78 +1749,129 @@ export default function AdminOfficesPage() {
                                       : {};
                                     return (sectionISPs[section] || ['']).map(
                                       (sectionISP: string, ispIndex: number) => (
-                                        <div key={ispIndex} className="flex gap-1 items-center">
-                                          <span className="text-xs text-gray-400 w-6">
-                                            {ispIndex + 1}.
-                                          </span>
-                                          <input
-                                            type="text"
-                                            value={sectionISP}
-                                            onChange={e => {
-                                              const currentISPs = sectionISPs[section] || [''];
-                                              const newISPs = [...currentISPs];
-                                              newISPs[ispIndex] = e.target.value;
-                                              updateEditSectionISPs(section, newISPs);
-                                            }}
-                                            placeholder={`ISP ${ispIndex + 1} name (e.g. GLOBE, SMART, PLDT)`}
-                                            className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-                                          />{' '}
-                                          <button
-                                            type="button"
-                                            onClick={e => {
-                                              e.preventDefault();
-                                              const currentISPs = sectionISPs[section] || [''];
-                                              const newISPs = [...currentISPs, ''];
-                                              updateEditSectionISPs(section, newISPs);
-                                            }}
-                                            className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
-                                            title="Add another ISP"
-                                          >
-                                            + ISP
-                                          </button>
-                                          {(sectionISPs[section] || ['']).length > 1 && (
+                                        <div key={ispIndex} className="space-y-2">
+                                          <div className="flex gap-1 items-center">
+                                            <span className="text-xs text-gray-400 w-6">
+                                              {ispIndex + 1}.
+                                            </span>
+                                            <input
+                                              type="text"
+                                              value={sectionISP}
+                                              onChange={e => {
+                                                const currentISPs = sectionISPs[section] || [''];
+                                                const newISPs = [...currentISPs];
+                                                newISPs[ispIndex] = e.target.value;
+                                                updateEditSectionISPs(section, newISPs);
+                                              }}
+                                              placeholder={`ISP ${ispIndex + 1} name (e.g. PLDT, Globe, Smart)`}
+                                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                            />
                                             <button
                                               type="button"
                                               onClick={e => {
                                                 e.preventDefault();
                                                 const currentISPs = sectionISPs[section] || [''];
-                                                const newISPs = currentISPs.filter(
-                                                  (_: string, i: number) => i !== ispIndex
-                                                );
+                                                const newISPs = [...currentISPs, ''];
                                                 updateEditSectionISPs(section, newISPs);
                                               }}
-                                              className="px-2 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50"
-                                              title="Remove this ISP"
+                                              className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
+                                              title="Add another ISP"
                                             >
-                                              ×
+                                              + ISP
                                             </button>
-                                          )}
+                                            {(sectionISPs[section] || ['']).length > 1 && (
+                                              <button
+                                                type="button"
+                                                onClick={e => {
+                                                  e.preventDefault();
+                                                  const currentISPs = sectionISPs[section] || [''];
+                                                  const newISPs = currentISPs.filter(
+                                                    (_: string, i: number) => i !== ispIndex
+                                                  );
+                                                  updateEditSectionISPs(section, newISPs);
+                                                }}
+                                                className="px-2 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50"
+                                                title="Remove this ISP"
+                                              >
+                                                ×
+                                              </button>
+                                            )}
+                                          </div>
+                                          
+                                          {/* ISP Description Selection for Section ISPs */}
+                                          <div className="ml-6 space-y-1">
+                                            <div className="text-xs text-gray-500">
+                                              Select description for "{sectionISP.split(' (')[0] || 'this ISP'}":
+                                            </div>
+                                            <div className="flex flex-wrap gap-1">
+                                              {['Primary Connection', 'Backup Line', 'Main Office', 'Branch Office', 'Fiber', 'DSL', 'Wireless', 'Dedicated'].map(desc => (
+                                                <button
+                                                  key={desc}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const ispName = sectionISP.split(' (')[0] || sectionISP;
+                                                    const newISPValue = `${ispName} (${desc})`;
+                                                    const currentISPs = sectionISPs[section] || [''];
+                                                    const newISPs = [...currentISPs];
+                                                    newISPs[ispIndex] = newISPValue;
+                                                    updateEditSectionISPs(section, newISPs);
+                                                  }}
+                                                  className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded hover:bg-blue-100 hover:text-blue-700 border border-gray-200"
+                                                >
+                                                  {desc}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
                                         </div>
                                       )
                                     );
                                   } catch {
                                     return (
-                                      <div className="flex gap-1 items-center">
-                                        <span className="text-xs text-gray-400 w-6">1.</span>
-                                        <input
-                                          type="text"
-                                          value=""
-                                          onChange={e =>
-                                            updateEditSectionISPs(section, [e.target.value])
-                                          }
-                                          placeholder="ISP 1 name (e.g. GLOBE, SMART, PLDT)"
-                                          className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-                                        />
-                                        <button
-                                          type="button"
-                                          onClick={e => {
-                                            e.preventDefault();
-                                            updateEditSectionISPs(section, ['', '']);
-                                          }}
-                                          className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
-                                        >
-                                          + ISP
-                                        </button>
+                                      <div className="space-y-2">
+                                        <div className="flex gap-1 items-center">
+                                          <span className="text-xs text-gray-400 w-6">1.</span>
+                                          <input
+                                            type="text"
+                                            value=""
+                                            onChange={e =>
+                                              updateEditSectionISPs(section, [e.target.value])
+                                            }
+                                            placeholder="ISP 1 name (e.g. PLDT, Globe, Smart)"
+                                            className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={e => {
+                                              e.preventDefault();
+                                              updateEditSectionISPs(section, ['', '']);
+                                            }}
+                                            className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
+                                          >
+                                            + ISP
+                                          </button>
+                                        </div>
+                                        
+                                        {/* ISP Description Selection for Empty ISP */}
+                                        <div className="ml-6 space-y-1">
+                                          <div className="text-xs text-gray-500">
+                                            Select description for this ISP:
+                                          </div>
+                                          <div className="flex flex-wrap gap-1">
+                                            {['Primary Connection', 'Backup Line', 'Main Office', 'Branch Office', 'Fiber', 'DSL', 'Wireless', 'Dedicated'].map(desc => (
+                                              <button
+                                                key={desc}
+                                                type="button"
+                                                onClick={() => {
+                                                  updateEditSectionISPs(section, [`(${desc})`]);
+                                                }}
+                                                className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded hover:bg-blue-100 hover:text-blue-700 border border-gray-200"
+                                              >
+                                                {desc}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
                                       </div>
                                     );
                                   }
@@ -1749,24 +1945,49 @@ export default function AdminOfficesPage() {
                       </label>
                       <div className="space-y-2">
                         {getEditISPsArray().map((isp, index) => (
-                          <div key={index} className="flex gap-2">
-                            <input
-                              type="text"
-                              value={isp}
-                              onChange={e => updateEditISPField(index, e.target.value)}
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              placeholder={`Internet Service Provider ${index + 1}`}
-                              required={index === 0}
-                            />
-                            {getEditISPsArray().length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => removeEditISPField(index)}
-                                className="px-3 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md border border-red-300"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            )}
+                          <div key={index} className="space-y-2">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={isp}
+                                onChange={e => updateEditISPField(index, e.target.value)}
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder={`ISP Name (e.g., PLDT, Globe, Smart)`}
+                                required={index === 0}
+                              />
+                              {getEditISPsArray().length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeEditISPField(index)}
+                                  className="px-3 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md border border-red-300"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                            
+                            {/* ISP Description Selection */}
+                            <div className="ml-4 space-y-2">
+                              <div className="text-xs text-gray-600">
+                                Select description for "{isp.split(' (')[0] || 'this ISP'}":
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {['Primary Connection', 'Backup Line', 'Main Office', 'Branch Office', 'Fiber', 'DSL', 'Wireless', 'Dedicated'].map(desc => (
+                                  <button
+                                    key={desc}
+                                    type="button"
+                                    onClick={() => {
+                                      const ispName = isp.split(' (')[0] || isp;
+                                      const newISPValue = `${ispName} (${desc})`;
+                                      updateEditISPField(index, newISPValue);
+                                    }}
+                                    className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-blue-100 hover:text-blue-700 border border-gray-300"
+                                  >
+                                    {desc}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           </div>
                         ))}
                         <button
@@ -1778,6 +1999,42 @@ export default function AdminOfficesPage() {
                           Add Another ISP
                         </button>
                       </div>
+                      
+                      {/* Duplicate Check Warning for Edit */}
+                      {(() => {
+                        const isps = getEditISPsArray().filter(isp => isp.trim());
+                        const duplicates = findDuplicateISPs(isps);
+                        if (duplicates.length > 0) {
+                          return (
+                            <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                              <div className="flex">
+                                <div className="flex-shrink-0">
+                                  <AlertTriangle className="h-5 w-5 text-yellow-400" />
+                                </div>
+                                <div className="ml-3">
+                                  <h3 className="text-sm font-medium text-yellow-800">
+                                    Duplicate ISP Names Detected
+                                  </h3>
+                                  <div className="mt-2 text-sm text-yellow-700">
+                                    <p>The following ISPs have the same name without descriptions:</p>
+                                    <ul className="list-disc list-inside mt-1">
+                                      {duplicates.map((dup, i) => (
+                                        <li key={i}>
+                                          <strong>{dup.name}</strong> appears {dup.count} times
+                                        </li>
+                                      ))}
+                                    </ul>
+                                    <p className="mt-2">
+                                      Please add descriptions (like "Primary Connection", "Backup Line") to distinguish between them.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { TimeSlot } from '@prisma/client';
-import { normalizeISPName } from '@/lib/isp-utils';
+import { normalizeISPName, parseISPsFromOffice, getISPDisplayName } from '@/lib/isp-utils';
 
 // Helper function to get time slot for current hour
 function getCurrentTimeSlot(): TimeSlot | null {
@@ -54,6 +54,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Get the correct office ID - for admin users, they can query any office
+    // For regular users, use their assigned office
+    const { searchParams } = new URL(request.url);
+    const requestedOfficeId = searchParams.get('officeId');
+    
+    let targetOfficeId: string;
+    if (isAdmin && requestedOfficeId) {
+      targetOfficeId = requestedOfficeId;
+    } else {
+      targetOfficeId = session.user.officeId!;
+    }
+
     const currentTimeSlot = getCurrentTimeSlot();
 
     if (!currentTimeSlot) {
@@ -66,7 +78,7 @@ export async function GET(request: NextRequest) {
       });
     } // Get office with all ISPs using raw query to avoid TypeScript issues
     const office = (await prisma.$queryRaw`
-      SELECT id, isp, isps, sectionISPs FROM offices WHERE id = ${session.user.officeId}
+      SELECT id, isp, isps, sectionISPs FROM offices WHERE id = ${targetOfficeId}
     `) as any[];
 
     if (!office || office.length === 0) {
@@ -74,59 +86,22 @@ export async function GET(request: NextRequest) {
     }
 
     const officeData = office[0];
-    // Combine all ISPs from general and section-specific settings with section info
-    let allISPs: Array<{ isp: string; section: string }> = [];
+    
+    // Use the new ISP parsing utility to get properly structured ISPs
+    const parsedISPs = parseISPsFromOffice(officeData);
+    
+    // Convert to the format expected by the frontend
+    let allISPs: Array<{ isp: string; section: string; id: string; displayName: string }> = [];
+    
+    parsedISPs.forEach(ispProvider => {
+      allISPs.push({
+        isp: ispProvider.name, // Original ISP name for matching
+        section: ispProvider.section || 'General', // Use actual section name, fallback to 'General'
+        id: ispProvider.id, // Unique identifier
+        displayName: getISPDisplayName(ispProvider) // Display name with description
+      });
+    });
 
-    try {
-      // Add general ISPs
-      if (officeData.isps) {
-        let generalISPs = JSON.parse(officeData.isps);
-
-        // Handle case where JSON is double-encoded as string
-        if (typeof generalISPs === 'string') {
-          try {
-            generalISPs = JSON.parse(generalISPs);
-          } catch (e) {
-            // If it fails to parse again, treat as single ISP string
-            generalISPs = [generalISPs];
-          }
-        }
-
-        if (Array.isArray(generalISPs)) {
-          generalISPs.forEach(isp => {
-            allISPs.push({ isp: normalizeISPName(isp), section: 'General' });
-          });
-        } else if (typeof generalISPs === 'string' && generalISPs.trim()) {
-          // Single ISP string case
-          allISPs.push({ isp: normalizeISPName(generalISPs), section: 'General' });
-        }
-      } else if (officeData.isp) {
-        allISPs.push({ isp: normalizeISPName(officeData.isp), section: 'General' });
-      }
-
-      // Add section-specific ISPs
-      if (officeData.sectionISPs) {
-        const sectionISPs = JSON.parse(officeData.sectionISPs);
-        if (typeof sectionISPs === 'object' && sectionISPs !== null) {
-          Object.entries(sectionISPs).forEach(([section, isps]: [string, any]) => {
-            if (Array.isArray(isps)) {
-              isps.forEach(isp => {
-                allISPs.push({ isp: normalizeISPName(isp), section });
-              });
-            }
-          });
-        }
-      }
-
-      // Filter out any empty ISPs
-      allISPs = allISPs.filter(item => item.isp && item.isp.trim());
-    } catch (error) {
-      console.error('Error parsing ISP data:', error);
-      // Fallback to primary ISP
-      allISPs = officeData.isp
-        ? [{ isp: normalizeISPName(officeData.isp), section: 'General' }]
-        : [];
-    }
     // Ensure we have at least one ISP
     if (allISPs.length === 0) {
       return NextResponse.json({ error: 'No ISPs configured for this office' }, { status: 400 });
@@ -140,7 +115,7 @@ export async function GET(request: NextRequest) {
     endOfDay.setHours(23, 59, 59, 999);
     const todaysTests = await prisma.speedTest.findMany({
       where: {
-        officeId: session.user.officeId,
+        officeId: targetOfficeId,
         timestamp: {
           gte: startOfDay,
           lte: endOfDay,
@@ -152,52 +127,99 @@ export async function GET(request: NextRequest) {
         rawData: true, // Include rawData to extract section info
       },
     }); // Filter tests from current time slot and create section-aware ISP tracking
+    console.log(`🔍 Available ISPs API: Processing ${todaysTests.length} today's tests`);
+    console.log(`🔍 Parsed ISPs:`, parsedISPs.map(isp => ({ 
+      id: isp.id, 
+      name: isp.name, 
+      description: isp.description, 
+      section: isp.section,
+      displayName: getISPDisplayName(isp)
+    }))); // Process today's tests to determine which ISPs have been tested
     const testedISPSections = todaysTests
       .filter(test => isTestFromTodayTimeSlot(test.timestamp, currentTimeSlot))
       .map(test => {
-        // Check if the stored ISP already includes section info
+        // The stored ISP might be in our new format with descriptions
+        // e.g., "PLDT (Backup Line)" or just "PLDT"
         const storedISP = test.isp;
+        
+        // PRIORITY 1: Try to extract section from rawData if available
+        let sectionFromRawData = null;
+        if (test.rawData) {
+          try {
+            const rawData = JSON.parse(test.rawData);
+            if (rawData.section) {
+              sectionFromRawData = rawData.section;
+              console.log(`🔍 Found section in rawData: "${sectionFromRawData}"`);
+            }
+          } catch (e) {
+            console.log(`🔍 Could not parse rawData for test`);
+          }
+        }
+        
+        // PRIORITY 2: If we have section from rawData, find exact section + display name match
+        if (sectionFromRawData) {
+          const sectionISP = parsedISPs.find(isp => 
+            isp.section === sectionFromRawData && getISPDisplayName(isp) === storedISP
+          );
+          if (sectionISP) {
+            console.log(`🔍 Matched with section ISP from rawData:`, { id: sectionISP.id, section: sectionISP.section });
+            return {
+              isp: sectionISP.name,
+              section: sectionISP.section,
+              id: sectionISP.id,
+              displayName: getISPDisplayName(sectionISP)
+            };
+          }
+        }
+        
+        // PRIORITY 3: Try to find exact display name match (this will find the first match)
+        const matchingISP = parsedISPs.find(isp => {
+          const displayMatch = getISPDisplayName(isp) === storedISP;
+          const nameMatch = isp.name === storedISP;
+          if (displayMatch || nameMatch) {
+            console.log(`🔍 Found display/name match: ISP ID ${isp.id}, section: ${isp.section}, displayName: "${getISPDisplayName(isp)}"`);
+          }
+          return displayMatch || nameMatch;
+        });
+        
+        if (matchingISP) {
+          console.log(`🔍 Using first matching ISP:`, { id: matchingISP.id, section: matchingISP.section });
+          return {
+            isp: matchingISP.name,
+            section: matchingISP.section || 'General',
+            id: matchingISP.id,
+            displayName: getISPDisplayName(matchingISP)
+          };
+        }
+        
+        // Fallback: try to parse section from ISP name if it has parentheses
         const sectionMatch = storedISP.match(/^(.+?)\s*\((.+?)\)$/);
-
         if (sectionMatch) {
-          // ISP already has section info: "Globe (IT)" -> {isp: "Globe", section: "IT"}
           return {
             isp: normalizeISPName(sectionMatch[1].trim()),
             section: sectionMatch[2].trim(),
-          };
-        } else {
-          // Legacy ISP without section info - try to extract section from rawData
-          let testSection = 'General';
-          try {
-            if (test.rawData) {
-              const rawData = JSON.parse(test.rawData);
-              if (rawData.section) {
-                testSection = rawData.section;
-              }
-            }
-          } catch (e) {
-            // If we can't parse section from rawData, default to General
-          }
-
-          return {
-            isp: normalizeISPName(storedISP),
-            section: testSection,
+            id: `${normalizeISPName(sectionMatch[1].trim())}-${sectionMatch[2].trim()}`,
+            displayName: storedISP
           };
         }
+
+        // Legacy format without section
+        return {
+          isp: normalizeISPName(storedISP),
+          section: 'General',
+          id: normalizeISPName(storedISP),
+          displayName: storedISP
+        };
       });
 
-    // Filter available ISPs using section-specific matching
+    // Filter available ISPs using ID-based matching for accuracy
     const availableISPs = allISPs.filter(item => {
-      const isAlreadyTested = testedISPSections.some(
-        tested => normalizeISPName(item.isp) === tested.isp && item.section === tested.section
-      );
+      const isAlreadyTested = testedISPSections.some(tested => tested.id === item.id);
       return !isAlreadyTested;
     });
 
     const testedDetailedISPs = allISPs.filter(item => {
-      const isAlreadyTested = testedISPSections.some(
-        tested => normalizeISPName(item.isp) === tested.isp && item.section === tested.section
-      );
+      const isAlreadyTested = testedISPSections.some(tested => tested.id === item.id);
       return isAlreadyTested;
     });
 

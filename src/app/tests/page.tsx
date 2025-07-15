@@ -17,6 +17,7 @@ interface SpeedTest {
   packetLoss?: number;
   timestamp: string;
   isp: string; // ISP detected during the speed test
+  rawData?: string; // Raw test data including section info
   office: {
     unitOffice: string;
     subUnitOffice?: string;
@@ -36,8 +37,8 @@ interface SpeedTestResult {
 }
 
 interface AvailableISPs {
-  available: Array<{ isp: string; section: string }>;
-  tested: Array<{ isp: string; section: string }>;
+  available: Array<{ isp: string; section: string; id: string; displayName: string }>;
+  tested: Array<{ isp: string; section: string; id: string; displayName: string }>;
   currentTimeSlot: string | null;
   timeSlotInfo: {
     morning: string;
@@ -140,7 +141,7 @@ export default function Tests() {
     if (availableISPs.available.length === 1) {
       // Only one ISP available, select it automatically
       const selectedItem = availableISPs.available[0];
-      setSelectedISP(selectedItem.isp);
+      setSelectedISP(selectedItem.id); // Use ID for unique identification (Fixed!)
       setSelectedSection(selectedItem.section);
       setShowSpeedometer(true);
     } else {
@@ -149,8 +150,8 @@ export default function Tests() {
     }
   };
 
-  const handleISPSelection = (isp: string, section: string) => {
-    setSelectedISP(isp);
+  const handleISPSelection = (ispId: string, ispName: string, section: string) => {
+    setSelectedISP(ispId); // Use ID for unique identification
     setSelectedSection(section);
     setShowISPSelector(false);
     setShowSpeedometer(true);
@@ -214,7 +215,7 @@ export default function Tests() {
         setShowSpeedometer(false);
         // Wait a moment for cleanup, then restart with new ISP
         restartTimeoutRef.current = setTimeout(() => {
-          setSelectedISP(matchingISP.isp);
+          setSelectedISP(matchingISP.id); // Use ID for unique identification (Fixed!)
           setSelectedSection(matchingISP.section); // Set the correct section
           setShowSpeedometer(true);
           restartTimeoutRef.current = null;
@@ -316,10 +317,20 @@ export default function Tests() {
                             key={`${item.isp}-${item.section}-${index}`}
                             className="text-sm bg-green-50 text-green-800 px-2 py-1 rounded flex justify-between items-center"
                           >
-                            <span className="font-medium">{item.isp}</span>
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                              {item.section}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{item.displayName || item.isp}</span>
+                              {item.section && item.section !== 'General' && (
+                                <span className="text-xs text-green-600 font-medium">Section: {item.section}</span>
+                              )}
+                            </div>
+                            <div className="flex flex-col items-end">
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                {item.displayName && item.displayName.includes('(') ? item.displayName.match(/\(([^)]+)\)/)?.[1] || item.section : item.section}
+                              </span>
+                              {item.section && item.section !== 'General' && (
+                                <span className="text-xs text-green-500 mt-1">{item.section} ISP</span>
+                              )}
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -341,10 +352,20 @@ export default function Tests() {
                             key={`${item.isp}-${item.section}-${index}`}
                             className="text-sm bg-blue-50 text-blue-800 px-2 py-1 rounded flex justify-between items-center"
                           >
-                            <span className="font-medium">{item.isp}</span>
-                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                              {item.section}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{item.displayName || item.isp}</span>
+                              {item.section && item.section !== 'General' && (
+                                <span className="text-xs text-blue-600 font-medium">Section: {item.section}</span>
+                              )}
+                            </div>
+                            <div className="flex flex-col items-end">
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                {item.displayName && item.displayName.includes('(') ? item.displayName.match(/\(([^)]+)\)/)?.[1] || item.section : item.section}
+                              </span>
+                              {item.section && item.section !== 'General' && (
+                                <span className="text-xs text-blue-500 mt-1">{item.section} ISP</span>
+                              )}
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -454,7 +475,27 @@ export default function Tests() {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {test.isp}
+                            <div className="flex flex-col">
+                              <span className="font-medium">{test.isp}</span>
+                              {(() => {
+                                // Try to extract section from rawData
+                                try {
+                                  if (test.rawData) {
+                                    const rawData = JSON.parse(test.rawData);
+                                    if (rawData.section && rawData.section !== 'General') {
+                                      return (
+                                        <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full w-fit mt-1">
+                                          {rawData.section} Section
+                                        </span>
+                                      );
+                                    }
+                                  }
+                                } catch (e) {
+                                  // Ignore parsing errors
+                                }
+                                return null;
+                              })()}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -637,18 +678,31 @@ export default function Tests() {
             <div className="space-y-2">
               {availableISPs.available.map((item, index) => (
                 <button
-                  key={`${item.isp}-${item.section}-${index}`}
-                  onClick={() => handleISPSelection(item.isp, item.section)}
+                  key={`${item.id}-${index}`}
+                  onClick={() => handleISPSelection(item.id, item.isp, item.section)}
                   className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
                 >
-                  <div className="flex justify-between items-center">
-                    <div className="font-medium">{item.isp}</div>
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                      {item.section}
-                    </span>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="font-medium">{item.displayName || item.isp}</div>
+                      {item.section && item.section !== 'General' && (
+                        <div className="text-xs text-blue-600 font-medium mt-1">Section: {item.section}</div>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                        {item.displayName && item.displayName.includes('(') ? item.displayName.match(/\(([^)]+)\)/)?.[1] || item.section : item.section}
+                      </span>
+                      {item.section && item.section !== 'General' && (
+                        <span className="text-xs text-blue-500 mt-1">{item.section} ISP</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-500">
-                    Available for testing in {item.section} section
+                  <div className="text-sm text-gray-500 mt-2">
+                    {item.section && item.section !== 'General' 
+                      ? `Available for testing in ${item.section} section`
+                      : 'Available for general office testing'
+                    }
                   </div>
                 </button>
               ))}

@@ -1,5 +1,13 @@
 import { Office, User, SpeedTest, TestSchedule, UserRole, TimeSlot } from '@prisma/client';
 
+// ISP interface for unique identification
+export interface ISPProvider {
+  id: string; // Unique identifier within the office
+  name: string; // Display name (e.g., "PLDT")
+  description?: string; // Optional description (e.g., "Main Office Connection", "Backup Line")
+  section?: string; // Section this ISP belongs to (if applicable)
+}
+
 export type UserWithOffice = User & {
   office?: Office | null;
 };

@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { spawn } from 'child_process';
 import { validateISPMatch, detectCurrentISP } from '@/lib/speedtest';
-import { normalizeISPName } from '@/lib/isp-utils';
+import { normalizeISPName, resolveISPFromId } from '@/lib/isp-utils';
 
 // Track active speedtest requests
 const activeRequests = new Set<string>();
@@ -385,30 +385,35 @@ export async function GET(request: NextRequest) {
                     // Get office info to capture ISP at time of test
                     const office = await prisma.office.findUnique({
                       where: { id: officeId! },
-                      select: { isp: true },
+                      select: { isp: true, isps: true, sectionISPs: true },
                     });
                     if (!office) {
                       console.error(`❌ [${requestId}] Office not found for ID: ${officeId}`);
                       return;
-                    } // Determine which ISP name to save - include section for unique tracking
+                    }
+
+                    // Determine which ISP name to save using proper resolution
                     let ispToSave: string;
-                    if (selectedISP && selectedSection) {
-                      // Create section-specific ISP identifier for unique tracking
-                      ispToSave = `${normalizeISPName(selectedISP)} (${selectedSection})`;
-                      console.log(
-                        `🏷️ [${requestId}] Using selected ISP with section: "${selectedISP}" (${selectedSection}) -> "${ispToSave}"`
-                      );
-                    } else if (selectedISP) {
-                      // User selected ISP but no section specified - use normalized ISP only
-                      ispToSave = normalizeISPName(selectedISP);
-                      console.log(
-                        `🏷️ [${requestId}] Using selected ISP: "${selectedISP}" -> normalized: "${ispToSave}"`
-                      );
+                    if (selectedISP) {
+                      // Try to resolve the ISP ID to get the proper display name
+                      const resolvedISP = resolveISPFromId(selectedISP, office);
+                      if (resolvedISP) {
+                        ispToSave = resolvedISP.displayName;
+                        console.log(
+                          `🏷️ [${requestId}] Resolved ISP ID "${selectedISP}" to display name: "${ispToSave}"`
+                        );
+                      } else {
+                        // Fallback: treat selectedISP as direct name
+                        ispToSave = normalizeISPName(selectedISP);
+                        console.log(
+                          `🏷️ [${requestId}] Could not resolve ISP ID "${selectedISP}", using as direct name: "${ispToSave}"`
+                        );
+                      }
                     } else {
                       // No specific ISP selected - use detected ISP from speedtest
                       ispToSave = normalizeISPName(finalResult.ispName || office.isp);
                       console.log(
-                        `[${requestId}] Using detected ISP: "${finalResult.ispName || office.isp}" -> normalized: "${ispToSave}"`
+                        `🏷️ [${requestId}] Using detected ISP: "${finalResult.ispName || office.isp}" -> normalized: "${ispToSave}"`
                       );
                     } // Create enhanced rawData that includes section information
                     const enhancedRawData = {

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { runSpeedTest, validateSpeedTestData } from '@/lib/speedtest';
-import { normalizeISPName } from '@/lib/isp-utils';
+import { normalizeISPName, resolveISPFromId } from '@/lib/isp-utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,7 +35,18 @@ export async function GET(request: NextRequest) {
 
     const tests = await prisma.speedTest.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        download: true,
+        upload: true,
+        ping: true,
+        jitter: true,
+        packetLoss: true,
+        isp: true,
+        serverId: true,
+        serverName: true,
+        timestamp: true,
+        rawData: true, // Include rawData to extract section info
         office: {
           select: {
             id: true,
@@ -78,14 +89,64 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { officeId, runTest, selectedISP } = body;
 
+    // Determine the correct office ID to use
+    let targetOfficeId: string;
+    if (session.user?.role === 'ADMIN' && officeId) {
+      // Admin can specify office ID
+      targetOfficeId = officeId;
+    } else {
+      // Regular users use their own office
+      targetOfficeId = session.user?.officeId!;
+    }
+
     // Check permissions
-    if (session.user?.role !== 'ADMIN' && session.user?.officeId !== officeId) {
+    if (session.user?.role !== 'ADMIN' && session.user?.officeId !== targetOfficeId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     if (runTest) {
       // For now, skip ISP validation to get the system working
       // TODO: Implement ISP validation using the available-isps endpoint
+
+      // Get office info including ISP configuration
+      const office = await prisma.office.findUnique({
+        where: { id: targetOfficeId },
+        select: { 
+          isp: true, 
+          isps: true, 
+          sectionISPs: true 
+        },
+      });
+
+      if (!office) {
+        return NextResponse.json({ error: 'Office not found' }, { status: 404 });
+      }
+
+      // Resolve the selected ISP from ID to actual ISP name
+      let actualISPName = selectedISP;
+      let ispDisplayName = selectedISP;
+      
+      console.log(`🔍 Processing speed test for office: ${targetOfficeId}, selectedISP: ${selectedISP}`);
+      console.log(`🔍 Office data:`, { 
+        isp: office.isp, 
+        isps: office.isps, 
+        sectionISPs: office.sectionISPs 
+      });
+      
+      if (selectedISP) {
+        const resolvedISP = resolveISPFromId(selectedISP, office);
+        console.log(`🔍 resolveISPFromId result:`, resolvedISP);
+        if (resolvedISP) {
+          actualISPName = resolvedISP.name;
+          ispDisplayName = resolvedISP.displayName;
+          console.log(`🔍 Resolved ISP ID "${selectedISP}" to "${actualISPName}" (display: "${ispDisplayName}")`);
+        } else {
+          // Fallback: treat selectedISP as direct name
+          actualISPName = selectedISP;
+          ispDisplayName = selectedISP;
+          console.log(`⚠️ Could not resolve ISP ID "${selectedISP}", using as direct name`);
+        }
+      }
 
       const { testResult } = body;
 
@@ -94,53 +155,39 @@ export async function POST(request: NextRequest) {
         // Use pre-computed results from SSE stream
         testData = testResult;
       } else {
-        // Run a new speed test with ISP validation
-        testData = await runSpeedTest(selectedISP);
+        // Run a new speed test with the actual ISP name (not ID)
+        const ispNameForTest = actualISPName || selectedISP;
+        testData = await runSpeedTest(ispNameForTest);
 
         if (!validateSpeedTestData(testData)) {
           return NextResponse.json({ error: 'Invalid speed test data' }, { status: 400 });
         }
       }
 
-      // Get office info to capture ISP at time of test
-      const office = await prisma.office.findUnique({
-        where: { id: officeId || session.user.officeId! },
-        select: { isp: true },
-      });
-
-      if (!office) {
-        return NextResponse.json({ error: 'Office not found' }, { status: 404 });
-      } // Determine which ISP name to save - include section for unique tracking
+      // Determine which ISP name to save
       let ispToSave: string;
-      const selectedSection = body.selectedSection; // Get section from request body
 
-      if (selectedISP && selectedSection) {
-        // Create section-specific ISP identifier for unique tracking
-        ispToSave = `${normalizeISPName(selectedISP)} (${selectedSection})`;
-        console.log(
-          `🏷️ Using selected ISP with section: "${selectedISP}" (${selectedSection}) -> "${ispToSave}"`
-        );
-      } else if (selectedISP) {
-        // User selected ISP but no section specified - use normalized ISP only
-        ispToSave = normalizeISPName(selectedISP);
-        console.log(`🏷️ Using selected ISP: "${selectedISP}" -> normalized: "${ispToSave}"`);
+      if (actualISPName) {
+        // Use the display name which includes descriptions for unique identification
+        ispToSave = ispDisplayName;
+        console.log(`🏷️ Using resolved ISP: "${ispToSave}"`);
       } else {
-        // No specific ISP selected - use detected ISP from speedtest
+        // No specific ISP selected - use detected ISP from speedtest or office default
         const detectedISP = (testData as any).ispName || office.isp;
         ispToSave = normalizeISPName(detectedISP);
-        console.log(`Using detected ISP: "${detectedISP}" -> normalized: "${ispToSave}"`);
+        console.log(`🏷️ Using detected/default ISP: "${detectedISP}" -> normalized: "${ispToSave}"`);
       }
 
       // Save to database
       const speedTest = await prisma.speedTest.create({
         data: {
-          officeId: officeId || session.user.officeId!,
+          officeId: targetOfficeId,
           download: testData.download,
           upload: testData.upload,
           ping: testData.ping,
           jitter: testData.jitter || 0,
           packetLoss: testData.packetLoss || 0,
-          isp: ispToSave, // Use normalized ISP name for consistent tracking
+          isp: ispToSave, // Use the resolved ISP display name for unique identification
           serverId: testData.serverId || '',
           serverName: testData.serverName || '',
           rawData: testData.rawData || '',
