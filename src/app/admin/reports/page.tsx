@@ -357,15 +357,10 @@ export default function ReportsPage() {
     });    relevantOffices.forEach(office => {
       // If "General" section is selected, show general ISPs
       if (filters.section === 'General') {
-        // Add general ISP with (General) suffix to match speed test data
+        // Add general ISP names exactly as they are stored in the database (without adding suffixes)
         if (office.isp && office.isp.trim()) {
           const baseISP = office.isp.trim();
-          // Add the ISP with (General) suffix if it doesn't already have it
-          if (!baseISP.includes('(General)')) {
-            ispSet.add(`${baseISP} (General)`);
-          } else {
-            ispSet.add(baseISP);
-          }
+          ispSet.add(baseISP); // Use the actual ISP name without adding (General)
         }
 
         // Add ISPs from isps field (JSON array) - these are general ISPs
@@ -376,12 +371,7 @@ export default function ReportsPage() {
               ispArray.forEach(isp => {
                 if (typeof isp === 'string' && isp.trim()) {
                   const baseISP = isp.trim();
-                  // Add the ISP with (General) suffix if it doesn't already have it
-                  if (!baseISP.includes('(General)')) {
-                    ispSet.add(`${baseISP} (General)`);
-                  } else {
-                    ispSet.add(baseISP);
-                  }
+                  ispSet.add(baseISP); // Use the actual ISP name without adding (General)
                 }
               });
             }
@@ -406,14 +396,10 @@ export default function ReportsPage() {
         }      } else {
         // No section selected - show all available ISPs (general + section-specific)
         
-        // Add general ISP with (General) suffix
+        // Add general ISP names exactly as they are stored in the database
         if (office.isp && office.isp.trim()) {
           const baseISP = office.isp.trim();
-          if (!baseISP.includes('(General)')) {
-            ispSet.add(`${baseISP} (General)`);
-          } else {
-            ispSet.add(baseISP);
-          }
+          ispSet.add(baseISP); // Use the actual ISP name without adding (General)
         }
 
         // Add ISPs from isps field (JSON array) - these are general ISPs
@@ -424,11 +410,7 @@ export default function ReportsPage() {
               ispArray.forEach(isp => {
                 if (typeof isp === 'string' && isp.trim()) {
                   const baseISP = isp.trim();
-                  if (!baseISP.includes('(General)')) {
-                    ispSet.add(`${baseISP} (General)`);
-                  } else {
-                    ispSet.add(baseISP);
-                  }
+                  ispSet.add(baseISP); // Use the actual ISP name without adding (General)
                 }
               });
             }

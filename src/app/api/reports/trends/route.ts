@@ -105,12 +105,54 @@ export async function GET(request: NextRequest) {
     // Add section-based ISP filtering
     if (section) {
       if (section === 'General') {
-        // For "General" section, include ISPs with "(General)" indicator
-        ispConditions.push({
-          isp: {
-            contains: '(General)',
-          },
+        // For "General" section, we need to find ISPs that don't have section suffixes
+        // or ISPs that would be general ISPs based on office configuration
+        // Since general ISPs are saved without (General) suffix, we need a different approach
+        
+        // Get all offices first to determine which ISPs are general
+        const allOffices = await prisma.office.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            isp: true,
+            isps: true,
+            sectionISPs: true
+          }
         });
+        
+        const generalISPNames = new Set<string>();
+        
+        allOffices.forEach(office => {
+          // Add primary ISP
+          if (office.isp && office.isp.trim()) {
+            generalISPNames.add(office.isp.trim());
+          }
+          
+          // Add ISPs from isps field (JSON array) - these are general ISPs
+          if (office.isps) {
+            try {
+              const ispArray = JSON.parse(office.isps);
+              if (Array.isArray(ispArray)) {
+                ispArray.forEach(isp => {
+                  if (typeof isp === 'string' && isp.trim()) {
+                    generalISPNames.add(isp.trim());
+                  }
+                });
+              }
+            } catch (e) {
+              console.warn('Invalid ISPs JSON:', office.isps);
+            }
+          }
+        });
+        
+        // Filter for general ISPs (exact match with known general ISP names)
+        if (generalISPNames.size > 0) {
+          ispConditions.push({
+            isp: {
+              in: Array.from(generalISPNames)
+            }
+          });
+        }
       } else {
         // For specific sections, include only ISPs that contain the section name in parentheses
         ispConditions.push({
