@@ -77,6 +77,41 @@ export default function ReportsPage() {
 
   // Full screen state for chart
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [chartDimensions, setChartDimensions] = useState({ width: 1200, height: 600 });
+
+  // Calculate responsive chart dimensions
+  const getChartDimensions = () => {
+    if (typeof window === 'undefined') {
+      return { width: 1200, height: 600 };
+    }
+    
+    if (isFullScreen) {
+      // In fullscreen, use most of the available space but leave room for header and padding
+      const maxWidth = Math.min(window.innerWidth - 120, 1800); // Leave margins
+      const maxHeight = Math.min(window.innerHeight - 250, 900); // Leave room for header
+      return {
+        width: Math.max(maxWidth, 1200), // Minimum 1200px width
+        height: Math.max(maxHeight, 600), // Minimum 600px height
+      };
+    } else {
+      // Normal mode dimensions
+      return {
+        width: 1200,
+        height: 600,
+      };
+    }
+  };
+
+  // Update dimensions when fullscreen changes or window resizes
+  useEffect(() => {
+    const updateDimensions = () => {
+      setChartDimensions(getChartDimensions());
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, [isFullScreen]);
 
   // Effects
   useEffect(() => {
@@ -216,8 +251,9 @@ export default function ReportsPage() {
     : {};
 
   const sortedData = !filters.unit ? processedData : processedData; // Chart dimensions and scaling
-  const chartWidth = isFullScreen ? 1400 : 900; // Larger in fullscreen
-  const chartHeight = isFullScreen ? 700 : 400; // Taller in fullscreen
+
+  const chartWidth = chartDimensions.width;
+  const chartHeight = chartDimensions.height;
   const padding = { top: 40, right: 40, bottom: 80, left: 50 }; // Reduced padding for better space usage
 
   const downloads = sortedData.map(d => d.avgDownload);
@@ -890,8 +926,8 @@ export default function ReportsPage() {
               </div>
             </div>{' '}
             {/* Chart and Visualization Section */}
-            <div className={`mx-auto px-4 pb-8 ${isFullScreen ? 'fixed inset-0 z-50 bg-white' : 'max-w-7xl'}`}>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-full">
+            <div className={`transition-all duration-300 ${isFullScreen ? 'fixed inset-0 z-50 bg-white flex flex-col' : 'mx-auto px-4 pb-8 max-w-none'}`}>
+              <div className={`bg-white rounded-xl shadow-lg border border-gray-200 transition-all duration-300 ${isFullScreen ? 'flex-1 flex flex-col m-4' : 'min-h-[700px]'}`}>
                 {/* Chart Header with Fullscreen Toggle */}
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
                   <div>
@@ -917,18 +953,18 @@ export default function ReportsPage() {
                   </button>
                 </div>
                 
-                <div className={`${isFullScreen ? 'p-6 h-full overflow-auto' : 'p-4'} overflow-hidden`}>
+                <div className={`transition-all duration-300 ${isFullScreen ? 'flex-1 flex flex-col p-6' : 'p-6'}`}>
                   {loading ? (
-                    <div className="flex justify-center items-center h-96">
+                    <div className={`flex justify-center items-center ${isFullScreen ? 'flex-1' : 'h-96'}`}>
                       <div className="flex flex-col items-center space-y-4">
                         <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
-                        <p className="text-gray-600">Loading performance data...</p>
+                        <p className="text-gray-600 text-lg">Loading performance data...</p>
                       </div>
                     </div>
                   ) : sortedData.length === 0 ? (
-                    <div className="flex flex-col justify-center items-center h-96 text-gray-500">
+                    <div className={`flex flex-col justify-center items-center text-gray-500 ${isFullScreen ? 'flex-1' : 'h-96'}`}>
                       <svg
-                        className="w-16 h-16 mb-4 text-gray-300"
+                        className="w-20 h-20 mb-6 text-gray-300"
                         fill="currentColor"
                         viewBox="0 0 20 20"
                       >
@@ -938,21 +974,22 @@ export default function ReportsPage() {
                           clipRule="evenodd"
                         />
                       </svg>
-                      <p className="text-lg font-medium">No data available</p>
-                      <p className="text-sm">Try adjusting your filters to see performance data</p>
+                      <p className="text-xl font-medium mb-2">No data available</p>
+                      <p className="text-base">Try adjusting your filters to see performance data</p>
                     </div>
                   ) : (
-                    <div className="space-y-6">
+                    <div className={`${isFullScreen ? 'flex-1 flex flex-col space-y-8' : 'space-y-8'}`}>
                       {' '}                      {/* Chart Container */}
-                      <div className={`relative bg-gray-50 rounded-lg flex justify-center w-full ${isFullScreen ? 'p-4' : 'p-2'}`}>
+                      <div className={`relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl shadow-inner border border-gray-200 transition-all duration-300 ${isFullScreen ? 'flex-1 flex items-center justify-center p-6' : 'flex justify-center w-full p-4'}`}>
                         <div className="w-full max-w-none flex justify-center">
                           <svg
                             width={chartWidth}
                             height={chartHeight}
-                            className="bg-white rounded-lg shadow-sm"
+                            className="transition-all duration-300 ease-in-out hover:shadow-lg"
+                            style={{ filter: 'drop-shadow(0 4px 6px rgb(0 0 0 / 0.1))' }}
                           >
                             {/* Background */}
-                            <rect width={chartWidth} height={chartHeight} fill="white" />
+                            <rect width={chartWidth} height={chartHeight} fill="white" rx="8" />
                             {/* Horizontal grid lines */}
                             {[0, 1, 2, 3, 4, 5].map(i => (
                               <line
@@ -1054,7 +1091,13 @@ export default function ReportsPage() {
                                   <polyline
                                     fill="none"
                                     stroke="#2563eb"
-                                    strokeWidth="2"
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="transition-all duration-300 hover:stroke-blue-700"
+                                    style={{
+                                      filter: 'drop-shadow(0 2px 4px rgba(37, 99, 235, 0.3))',
+                                    }}
                                     points={sortedData
                                       .map(
                                         (item, index) =>
@@ -1069,7 +1112,13 @@ export default function ReportsPage() {
                                   <polyline
                                     fill="none"
                                     stroke="#16a34a"
-                                    strokeWidth="2"
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="transition-all duration-300 hover:stroke-green-700"
+                                    style={{
+                                      filter: 'drop-shadow(0 2px 4px rgba(22, 163, 74, 0.3))',
+                                    }}
                                     points={sortedData
                                       .map(
                                         (item, index) =>
@@ -1084,7 +1133,13 @@ export default function ReportsPage() {
                                   <polyline
                                     fill="none"
                                     stroke="#ea580c"
-                                    strokeWidth="2"
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="transition-all duration-300 hover:stroke-orange-700"
+                                    style={{
+                                      filter: 'drop-shadow(0 2px 4px rgba(234, 88, 12, 0.3))',
+                                    }}
                                     points={sortedData
                                       .map(
                                         (item, index) =>
@@ -1175,7 +1230,7 @@ export default function ReportsPage() {
                                       <circle
                                         cx={x}
                                         cy={downloadY}
-                                        r="12"
+                                        r="15"
                                         fill="transparent"
                                         className="cursor-pointer"
                                         onMouseEnter={e => {
@@ -1190,12 +1245,15 @@ export default function ReportsPage() {
                                       <circle
                                         cx={x}
                                         cy={downloadY}
-                                        r="4"
+                                        r="5"
                                         fill="#2563eb"
                                         stroke="white"
-                                        strokeWidth="2"
-                                        className="pointer-events-none transition-all"
-                                        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                                        strokeWidth="3"
+                                        className="pointer-events-none transition-all duration-300 hover:scale-125"
+                                        style={{ 
+                                          filter: 'drop-shadow(0 3px 6px rgba(37, 99, 235, 0.4))',
+                                          transformOrigin: 'center'
+                                        }}
                                       />
                                     </g>
                                   )}                                  {/* Upload circle */}
@@ -1220,12 +1278,15 @@ export default function ReportsPage() {
                                       <circle
                                         cx={x}
                                         cy={uploadY}
-                                        r="4"
+                                        r="5"
                                         fill="#16a34a"
                                         stroke="white"
-                                        strokeWidth="2"
-                                        className="pointer-events-none transition-all"
-                                        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                                        strokeWidth="3"
+                                        className="pointer-events-none transition-all duration-300 hover:scale-125"
+                                        style={{ 
+                                          filter: 'drop-shadow(0 3px 6px rgba(22, 163, 74, 0.4))',
+                                          transformOrigin: 'center'
+                                        }}
                                       />
                                     </g>
                                   )}                                  {/* Ping circle */}
@@ -1235,7 +1296,7 @@ export default function ReportsPage() {
                                       <circle
                                         cx={x}
                                         cy={pingY}
-                                        r="12"
+                                        r="15"
                                         fill="transparent"
                                         className="cursor-pointer"
                                         onMouseEnter={e => {
@@ -1250,12 +1311,15 @@ export default function ReportsPage() {
                                       <circle
                                         cx={x}
                                         cy={pingY}
-                                        r="4"
+                                        r="5"
                                         fill="#ea580c"
                                         stroke="white"
-                                        strokeWidth="2"
-                                        className="pointer-events-none transition-all"
-                                        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                                        strokeWidth="3"
+                                        className="pointer-events-none transition-all duration-300 hover:scale-125"
+                                        style={{ 
+                                          filter: 'drop-shadow(0 3px 6px rgba(234, 88, 12, 0.4))',
+                                          transformOrigin: 'center'
+                                        }}
                                       />
                                     </g>
                                   )}

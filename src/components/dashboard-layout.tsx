@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Clock,
   AlertTriangle,
+  Download,
 } from 'lucide-react';
 import { Footer } from '@/components/footer';
 
@@ -226,6 +227,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           { name: 'Offices', href: '/admin/offices', icon: Building },
           { name: 'Users', href: '/admin/users', icon: Users },
           { name: 'Analytics', href: '/admin/reports', icon: FileText },
+          { name: 'Export Reports', href: '/admin/export', icon: Download },
           { name: 'Settings', href: '/admin/settings', icon: Settings },
         ]
       : [{ name: 'Settings', href: '/settings', icon: Settings }]),
