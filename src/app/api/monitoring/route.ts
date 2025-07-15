@@ -175,19 +175,32 @@ export async function GET(request: NextRequest) {
       // Create compliance data per ISP-section combination
       const ispCompliance = allISPs.map(ispItem => {
         // Create section-specific ISP identifier for matching against stored tests
-        const ispIdentifier = `${ispItem.isp} (${ispItem.section})`;
+        const ispIdentifier = ispItem.section === 'General' 
+          ? ispItem.isp // For General section, don't add (General) suffix
+          : `${ispItem.isp} (${ispItem.section})`; // For other sections, add section suffix
 
         // Filter tests for this specific ISP-section combination
         const ispTests = officeTests.filter(test => {
-          // Check if the stored ISP already includes section info
           const storedISP = test.isp;
+          
+          // Check if the stored ISP has section info in parentheses
           const sectionMatch = storedISP.match(/^(.+?)\s*\((.+?)\)$/);
 
           if (sectionMatch) {
-            // ISP has section info: "Globe (IT)" -> compare with "Globe (IT)"
-            return storedISP === ispIdentifier;
+            // Stored ISP has section info: "PLDT (Primary Connection)" or "PLDT (Dev)"
+            const [, storedName, storedSectionOrDescription] = sectionMatch;
+            
+            if (ispItem.section === 'General') {
+              // For General section ISPs, match by the ISP name including description
+              // E.g., stored "PLDT (Primary Connection)" should match ISP "PLDT (Primary Connection)"
+              return storedISP === ispItem.isp;
+            } else {
+              // For specific sections, check if the stored section matches
+              // E.g., stored "PLDT (Dev)" should match section "Dev"
+              return storedSectionOrDescription === ispItem.section && storedName === ispItem.isp.replace(/\s*\([^)]+\)$/, '');
+            }
           } else {
-            // Legacy ISP without section info - only match if it's a General ISP
+            // Legacy ISP without section info - only match if it's a General ISP and names match
             return ispItem.section === 'General' && storedISP === ispItem.isp;
           }
         });
@@ -210,7 +223,9 @@ export async function GET(request: NextRequest) {
         const completedSlots = [latestMorning, latestNoon, latestAfternoon].filter(Boolean).length;
         const compliancePercentage = Math.round((completedSlots / 3) * 100);
         return {
-          isp: `${ispItem.isp} (${ispItem.section})`, // Display ISP with section
+          isp: ispItem.section === 'General' 
+            ? ispItem.isp // For General section, don't show (General) suffix
+            : `${ispItem.isp} (${ispItem.section})`, // For other sections, show section
           compliance: {
             percentage: compliancePercentage,
             completedSlots,
