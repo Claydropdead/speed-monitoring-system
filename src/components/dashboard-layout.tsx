@@ -63,7 +63,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         
         if (newTime <= 0) {
           clearAllTimers();
-          signOut({ callbackUrl: '/' });
+          signOut({ callbackUrl: '/auth/signin' });
           return 0;
         }
         return newTime;
@@ -134,7 +134,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }, [status]);
 
   const handleSignOut = () => {
-    signOut({ callbackUrl: '/' });
+    signOut({ callbackUrl: '/auth/signin' });
   };
 
   // Main effect for activity tracking and session management
@@ -418,7 +418,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 Stay Logged In
               </button>
               <button
-                onClick={() => signOut({ callbackUrl: '/' })}
+                onClick={() => signOut({ callbackUrl: '/auth/signin' })}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 font-medium"
               >
                 Logout Now
