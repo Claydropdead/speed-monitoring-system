@@ -342,13 +342,19 @@ export async function GET(request: NextRequest) {
                   detectedISP = selectedISP;
                   console.log(`🌐 [${requestId}] Using validated selected ISP: "${selectedISP}"`);
                 } else {
-                  // Fallback to initial detection or Ookla detection
-                  detectedISP = initialDetectedISP || 
-                    result.isp ||
-                    result.interface?.externalIsp ||
-                    result.client?.isp ||
-                    'Unknown ISP';
-                  console.log(`🌐 [${requestId}] Using initial detected ISP: "${initialDetectedISP}"`);
+                  // If initial detection failed (Auto-Detected ISP), prioritize Ookla's detection
+                  if (initialDetectedISP === 'Auto-Detected ISP' && result.isp && result.isp !== 'Unknown ISP') {
+                    detectedISP = result.isp;
+                    console.log(`🌐 [${requestId}] Using Ookla detected ISP instead of fallback: "${result.isp}"`);
+                  } else {
+                    // Fallback to initial detection or other Ookla detection
+                    detectedISP = initialDetectedISP || 
+                      result.isp ||
+                      result.interface?.externalIsp ||
+                      result.client?.isp ||
+                      'Unknown ISP';
+                    console.log(`🌐 [${requestId}] Using initial detected ISP: "${initialDetectedISP}"`);
+                  }
                 }
                 
                 console.log(`🌐 [${requestId}] Ookla detected ISP: "${result.isp}"`);
@@ -357,9 +363,10 @@ export async function GET(request: NextRequest) {
                 // Validate ISP if selectedISP is provided (but skip if using validated ISP)
                 let ispValidation;
                 if (selectedISP && !useValidatedISP) {
-                  // Only validate if we're not using the already-validated ISP
-                  ispValidation = validateISPMatch(selectedISP, detectedISP);
-                  console.log(`🔍 [${requestId}] ISP validation result:`, ispValidation);
+                  // Use relaxed mode if we detected "Auto-Detected ISP" fallback
+                  const useRelaxedMode = detectedISP === 'Auto-Detected ISP' || initialDetectedISP === 'Auto-Detected ISP';
+                  ispValidation = validateISPMatch(selectedISP, detectedISP, useRelaxedMode);
+                  console.log(`🔍 [${requestId}] ISP validation result (relaxed: ${useRelaxedMode}):`, ispValidation);
                 } else if (useValidatedISP) {
                   // Create a successful validation result since it was already validated
                   ispValidation = {

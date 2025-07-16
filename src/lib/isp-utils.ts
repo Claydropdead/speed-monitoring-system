@@ -86,6 +86,18 @@ export function validateISPMatch(
   const selectedCanonical = normalizeISPName(selectedISP);
   const detectedCanonical = normalizeISPName(detectedISP);
 
+  // Special case: Handle Auto-Detected ISP fallback
+  if (detectedCanonical === 'Auto-Detected ISP' || detectedISP === 'Auto-Detected ISP') {
+    return {
+      isMatch: true,
+      confidence: 90,
+      detectedCanonical,
+      selectedCanonical,
+      allowProceed: true,
+      suggestion: `ISP detection fallback: Using "${selectedCanonical}" as selected. The actual ISP will be detected during the speed test.`,
+    };
+  }
+
   // Exact match
   if (selectedCanonical === detectedCanonical) {
     return {
