@@ -3,6 +3,14 @@ set -e
 
 echo "🚀 Starting Speed Test Monitoring System..."
 
+# Set timezone if not specified
+if [ -z "$TZ" ]; then
+  export TZ="UTC"
+  echo "🌍 Timezone set to UTC (default for Railway)"
+else
+  echo "🌍 Timezone set to $TZ"
+fi
+
 # Wait for database to be ready
 echo "⏳ Waiting for database connection..."
 timeout=30

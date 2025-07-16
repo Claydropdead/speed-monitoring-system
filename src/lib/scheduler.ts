@@ -51,7 +51,7 @@ class SpeedTestScheduler {
         await this.executeScheduledTest(scheduleId, officeId, timeSlot);
       },
       {
-        timezone: 'America/New_York', // Adjust timezone as needed
+        timezone: process.env.TZ || 'UTC', // Use environment timezone or UTC for Railway
       }
     );
     this.jobs.set(scheduleId, task);

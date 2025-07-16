@@ -4,41 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { TimeSlot } from '@prisma/client';
 import { normalizeISPName, parseISPsFromOffice, getISPDisplayName } from '@/lib/isp-utils';
-
-// Helper function to get time slot for current hour
-function getCurrentTimeSlot(): TimeSlot | null {
-  const hour = new Date().getHours();
-  if (hour >= 6 && hour <= 11) return TimeSlot.MORNING; // 6:00 AM - 11:59 AM
-  if (hour === 12) return TimeSlot.NOON; // 12:00 PM - 12:59 PM
-  if (hour >= 13 && hour <= 18) return TimeSlot.AFTERNOON; // 1:00 PM - 6:00 PM
-  return null;
-}
-
-// Helper function to check if a timestamp falls within today's time slot
-function isTestFromTodayTimeSlot(timestamp: Date, timeSlot: TimeSlot): boolean {
-  const today = new Date();
-  const testDate = new Date(timestamp);
-
-  // Check if it's from today
-  if (
-    testDate.getDate() !== today.getDate() ||
-    testDate.getMonth() !== today.getMonth() ||
-    testDate.getFullYear() !== today.getFullYear()
-  ) {
-    return false;
-  }
-
-  // Check if it's from the current time slot
-  const testHour = testDate.getHours();
-  const testTimeSlot = (() => {
-    if (testHour >= 6 && testHour <= 11) return TimeSlot.MORNING;
-    if (testHour === 12) return TimeSlot.NOON;
-    if (testHour >= 13 && testHour <= 18) return TimeSlot.AFTERNOON;
-    return null;
-  })();
-
-  return testTimeSlot === timeSlot;
-}
+import { getCurrentTimeSlot, isTestFromTodayTimeSlot, getTimeSlotInfo } from '@/lib/timezone';
 
 export async function GET(request: NextRequest) {
   try {
@@ -227,11 +193,7 @@ export async function GET(request: NextRequest) {
       available: availableISPs,
       tested: testedDetailedISPs,
       currentTimeSlot,
-      timeSlotInfo: {
-        morning: '6:00 AM - 11:59 AM',
-        noon: '12:00 PM - 12:59 PM',
-        afternoon: '1:00 PM - 6:00 PM',
-      },
+      timeSlotInfo: getTimeSlotInfo(),
     });
   } catch (error) {
     console.error('Available ISPs API error:', error);

@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import SpeedTestModal from '@/components/speed-test-modal';
+import TimeStatus from '@/components/time-status';
 import { useEffect, useState, useRef } from 'react';
 import { format } from 'date-fns';
 import { Zap, Download, Upload, Clock, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
@@ -279,6 +280,9 @@ export default function Tests() {
             </button>
           )}
         </div>
+
+        {/* Time Status Information */}
+        <TimeStatus />
 
         {/* Current Time Slot Status */}
         {availableISPs && session?.user?.officeId && (
