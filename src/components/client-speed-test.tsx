@@ -130,6 +130,8 @@ export default function ClientSpeedTest({
         timestamp: new Date().toISOString(),
       };
 
+      console.log('📊 Preliminary test results:', preliminaryResult);
+
       // Validate the results server-side if ISP is selected
       let finalResult: any = preliminaryResult;
       if (selectedISP) {
@@ -173,19 +175,22 @@ export default function ClientSpeedTest({
         }
       }
 
-      setProgress({
-        type: 'result',
-        stage: 'complete',
+      // Update final progress with actual results
+      const finalProgress = {
+        type: 'result' as const,
+        stage: 'complete' as const,
         progress: 100,
-        download: progress.download,
-        upload: progress.upload,
-        ping: progress.ping,
-        jitter: progress.jitter,
-        packetLoss: progress.packetLoss,
+        download: finalResult.download,
+        upload: finalResult.upload,
+        ping: finalResult.ping,
+        jitter: finalResult.jitter,
+        packetLoss: finalResult.packetLoss,
         ispName: detectedISP,
         complete: true,
-      });
+      };
 
+      setProgress(finalProgress);
+      console.log('🎯 Final speed test results:', finalResult);
       onComplete(finalResult);
 
     } catch (error: any) {
@@ -218,19 +223,25 @@ export default function ClientSpeedTest({
       'https://www.google.com/favicon.ico',
       'https://www.cloudflare.com/favicon.ico',
       'https://www.microsoft.com/favicon.ico',
+      'https://speed.cloudflare.com/',
     ];
 
     let bestPing = Infinity;
     const pingResults: number[] = [];
 
-    for (let i = 0; i < 3; i++) {
+    // Run multiple rounds of ping tests
+    for (let round = 0; round < 5; round++) {
       for (const server of testServers) {
         try {
           const start = performance.now();
           await fetch(server, { 
             method: 'HEAD', 
             cache: 'no-cache',
-            signal: AbortSignal.timeout(5000)
+            signal: AbortSignal.timeout(5000),
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+            }
           });
           const ping = performance.now() - start;
           pingResults.push(ping);
@@ -240,34 +251,46 @@ export default function ClientSpeedTest({
         }
       }
 
-      const progressPercent = ((i + 1) / 3) * 20; // 20% for ping phase
+      const progressPercent = ((round + 1) / 5) * 20; // 20% for ping phase
+      const currentPing = bestPing === Infinity ? 0 : bestPing;
+      
       setProgress(prev => ({
         ...prev,
         stage: 'ping',
         progress: 10 + progressPercent,
-        ping: bestPing === Infinity ? 0 : bestPing,
+        ping: currentPing,
       }));
-      onProgress?.({ ...progress, stage: 'ping', progress: 10 + progressPercent, ping: bestPing === Infinity ? 0 : bestPing });
+      onProgress?.({ ...progress, stage: 'ping', progress: 10 + progressPercent, ping: currentPing });
 
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    // Calculate jitter
+    // Calculate jitter and final ping
     if (pingResults.length > 1) {
       const avgPing = pingResults.reduce((a, b) => a + b, 0) / pingResults.length;
       const jitter = Math.sqrt(pingResults.reduce((sum, ping) => sum + Math.pow(ping - avgPing, 2), 0) / pingResults.length);
-      setProgress(prev => ({ ...prev, jitter }));
+      const finalPing = avgPing; // Use average ping for final result
+      
+      setProgress(prev => ({ 
+        ...prev, 
+        ping: finalPing,
+        jitter 
+      }));
+      
+      console.log(`Ping test completed: ${finalPing.toFixed(1)}ms avg, ${jitter.toFixed(1)}ms jitter, ${bestPing.toFixed(1)}ms best`);
     }
   };
 
   // Run download test using multiple file downloads
   const runDownloadTest = async () => {
     const testFiles = [
+      { url: 'https://speed.cloudflare.com/__down?bytes=1000000', size: 1000000 }, // 1MB
+      { url: 'https://speed.cloudflare.com/__down?bytes=5000000', size: 5000000 }, // 5MB
       { url: 'https://speed.cloudflare.com/__down?bytes=10000000', size: 10000000 }, // 10MB
-      { url: 'https://speed.cloudflare.com/__down?bytes=25000000', size: 25000000 }, // 25MB
     ];
 
     let maxDownload = 0;
+    const downloadSpeeds: number[] = [];
 
     for (let fileIndex = 0; fileIndex < testFiles.length; fileIndex++) {
       const file = testFiles[fileIndex];
@@ -278,66 +301,98 @@ export default function ClientSpeedTest({
 
         const response = await fetch(file.url, {
           signal: abortControllerRef.current?.signal,
+          cache: 'no-cache',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+          }
         });
 
         if (!response.body) throw new Error('No response body');
 
         const reader = response.body.getReader();
-        const contentLength = file.size;
+        const startTime = performance.now();
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           loaded += value?.length || 0;
-          const elapsed = (performance.now() - start) / 1000; // seconds
+          const elapsed = (performance.now() - startTime) / 1000; // seconds
           
-          if (elapsed > 0) {
+          if (elapsed > 0.5) { // Only calculate after 500ms to get stable readings
             const currentSpeed = (loaded * 8) / (elapsed * 1000000); // Mbps
             maxDownload = Math.max(maxDownload, currentSpeed);
+            downloadSpeeds.push(currentSpeed);
 
-            const fileProgress = (fileIndex / testFiles.length) + (loaded / contentLength / testFiles.length);
+            const fileProgress = (fileIndex / testFiles.length) + (loaded / file.size / testFiles.length);
             const overallProgress = 30 + (fileProgress * 40); // 30-70% for download
 
             setProgress(prev => ({
               ...prev,
               stage: 'download',
-              progress: overallProgress,
+              progress: Math.min(70, overallProgress),
               download: currentSpeed,
             }));
-            onProgress?.({ ...progress, stage: 'download', progress: overallProgress, download: currentSpeed });
+            onProgress?.({ ...progress, stage: 'download', progress: Math.min(70, overallProgress), download: currentSpeed });
           }
         }
+
+        // Calculate final speed for this file
+        const totalTime = (performance.now() - start) / 1000;
+        if (totalTime > 0) {
+          const fileSpeed = (loaded * 8) / (totalTime * 1000000); // Mbps
+          downloadSpeeds.push(fileSpeed);
+          maxDownload = Math.max(maxDownload, fileSpeed);
+        }
+
       } catch (error) {
         console.log(`Download test failed for file ${fileIndex + 1}:`, error);
       }
+
+      // Small delay between files
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    setProgress(prev => ({ ...prev, download: maxDownload }));
+    // Use the best speed recorded
+    const finalDownloadSpeed = downloadSpeeds.length > 0 ? Math.max(...downloadSpeeds) : 0;
+    setProgress(prev => ({ ...prev, download: finalDownloadSpeed }));
+    console.log(`Download test completed: ${finalDownloadSpeed.toFixed(2)} Mbps (max: ${maxDownload.toFixed(2)} Mbps)`);
   };
 
   // Run upload test using POST requests
   const runUploadTest = async () => {
-    const uploadSizes = [1000000, 5000000]; // 1MB, 5MB
+    const uploadSizes = [500000, 1000000, 2000000]; // 500KB, 1MB, 2MB
     let maxUpload = 0;
+    const uploadSpeeds: number[] = [];
 
     for (let sizeIndex = 0; sizeIndex < uploadSizes.length; sizeIndex++) {
       const size = uploadSizes[sizeIndex];
-      const data = new ArrayBuffer(size);
+      
+      // Create random data to upload
+      const data = new Uint8Array(size);
+      for (let i = 0; i < size; i++) {
+        data[i] = Math.floor(Math.random() * 256);
+      }
 
       try {
         const start = performance.now();
         
-        await fetch('https://httpbin.org/post', {
+        const response = await fetch('https://httpbin.org/post', {
           method: 'POST',
           body: data,
           signal: abortControllerRef.current?.signal,
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'Cache-Control': 'no-cache',
+          }
         });
 
         const elapsed = (performance.now() - start) / 1000; // seconds
         if (elapsed > 0) {
           const uploadSpeed = (size * 8) / (elapsed * 1000000); // Mbps
           maxUpload = Math.max(maxUpload, uploadSpeed);
+          uploadSpeeds.push(uploadSpeed);
 
           const overallProgress = 70 + ((sizeIndex + 1) / uploadSizes.length) * 25; // 70-95%
 
@@ -348,13 +403,22 @@ export default function ClientSpeedTest({
             upload: uploadSpeed,
           }));
           onProgress?.({ ...progress, stage: 'upload', progress: overallProgress, upload: uploadSpeed });
+
+          console.log(`Upload test ${sizeIndex + 1}: ${size} bytes in ${elapsed.toFixed(2)}s = ${uploadSpeed.toFixed(2)} Mbps`);
         }
+
       } catch (error) {
         console.log(`Upload test failed for size ${size}:`, error);
       }
+
+      // Small delay between uploads
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    setProgress(prev => ({ ...prev, upload: maxUpload }));
+    // Use the best speed recorded
+    const finalUploadSpeed = uploadSpeeds.length > 0 ? Math.max(...uploadSpeeds) : 0;
+    setProgress(prev => ({ ...prev, upload: finalUploadSpeed }));
+    console.log(`Upload test completed: ${finalUploadSpeed.toFixed(2)} Mbps (max: ${maxUpload.toFixed(2)} Mbps)`);
   };
 
   // Start test on mount
