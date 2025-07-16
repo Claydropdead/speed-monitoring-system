@@ -12,6 +12,12 @@ class SpeedTestScheduler {
 
   private async initializeSchedules() {
     try {
+      // Skip initialization during build with placeholder database
+      if (process.env.DATABASE_URL?.includes('placeholder')) {
+        console.log('Skipping scheduler initialization during build');
+        return;
+      }
+      
       const schedules = await prisma.testSchedule.findMany({
         where: { isActive: true },
         include: { office: true },

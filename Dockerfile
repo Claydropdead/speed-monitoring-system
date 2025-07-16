@@ -41,8 +41,7 @@ RUN npx prisma generate
 ENV DATABASE_URL="postgresql://placeholder:placeholder@placeholder:5432/placeholder"
 RUN npm run build:docker
 
-# Remove dev dependencies after build to reduce image size
-RUN npm prune --production
+# Note: Keeping all dependencies for runtime CSS processing
 
 # Remove dev dependencies after build
 RUN npm prune --production
