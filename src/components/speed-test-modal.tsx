@@ -52,6 +52,67 @@ export default function SpeedTestModal({
   const [error, setError] = useState<string | null>(null);
   const [isTestRunning, setIsTestRunning] = useState(false);
   const [hasCompletedTest, setHasCompletedTest] = useState(false);
+  const [usingServerFallback, setUsingServerFallback] = useState(false);
+
+  // Server-side fallback test function
+  const tryServerSideTest = async () => {
+    console.log('🔄 Starting server-side fallback test...');
+    setUsingServerFallback(true);
+    
+    try {
+      const params = new URLSearchParams({
+        officeId: officeId,
+        ...(selectedISP && { selectedISP }),
+        ...(selectedSection && { selectedSection }),
+      });
+
+      const eventSource = new EventSource(`/api/speedtest/live?${params}`);
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'result' && data.complete) {
+            console.log('✅ Server-side test completed:', data);
+            eventSource.close();
+            
+            // Convert server-side result
+            const speedTestResult: SpeedTestResult = {
+              download: data.download || 0,
+              upload: data.upload || 0,
+              ping: data.ping || 0,
+              jitter: data.jitter || 0,
+              packetLoss: data.packetLoss || 0,
+              serverId: data.serverId || 'server-side',
+              serverName: data.serverName || 'Server-Side Fallback',
+              isp: data.ispName || 'Server-Detected',
+              clientIP: data.clientIp,
+              serverLocation: data.serverLocation,
+              rawData: JSON.stringify(data)
+            };
+            
+            handleComplete(speedTestResult);
+          } else if (data.type === 'error') {
+            console.error('❌ Server-side test error:', data.error);
+            eventSource.close();
+            handleError(data.error || 'Server-side test failed');
+          }
+        } catch (parseError) {
+          console.error('❌ Error parsing server response:', parseError);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('❌ Server-side test connection error:', error);
+        eventSource.close();
+        handleError('Failed to connect to server for speed test');
+      };
+
+    } catch (error) {
+      console.error('❌ Server-side test setup error:', error);
+      handleError('Failed to start server-side speed test');
+    }
+  };
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -269,31 +330,54 @@ export default function SpeedTestModal({
                   </div>
                 ) : (
                   <div>
-                    <ClientSpeedTest
-                      officeId={officeId}
-                      selectedISP={selectedISP}
-                      selectedSection={selectedSection}
-                      onComplete={(result) => {
-                        // Convert client-side result to our format
-                        const speedTestResult: SpeedTestResult = {
-                          download: result.download,
-                          upload: result.upload,
-                          ping: result.ping,
-                          jitter: result.jitter || 0,
-                          packetLoss: result.packetLoss || 0,
-                          serverId: result.serverId || 'client-side',
-                          serverName: result.serverName || 'Client-Side Test',
-                          isp: result.ispName,
-                          clientIP: result.clientIp,
-                          serverLocation: result.serverLocation,
-                          rawData: JSON.stringify(result)
-                        };
-                        handleComplete(speedTestResult);
-                      }}
-                      onError={(error, errorData) => {
-                        handleError(error, errorData);
-                      }}
-                    />
+                    {usingServerFallback ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <div className="text-lg font-medium text-gray-900 mb-2">
+                          Running Server-Side Speed Test
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          Client-side test encountered issues, using server-side fallback...
+                        </div>
+                      </div>
+                    ) : (
+                      <ClientSpeedTest
+                        officeId={officeId}
+                        selectedISP={selectedISP}
+                        selectedSection={selectedSection}
+                        onComplete={(result) => {
+                          // Check if client-side test got reasonable results
+                          if (result.download > 0 || result.upload > 0) {
+                            console.log('✅ Client-side test successful:', result);
+                            // Convert client-side result to our format
+                            const speedTestResult: SpeedTestResult = {
+                              download: result.download,
+                              upload: result.upload,
+                              ping: result.ping,
+                              jitter: result.jitter || 0,
+                              packetLoss: result.packetLoss || 0,
+                              serverId: result.serverId || 'client-side',
+                              serverName: result.serverName || 'Client-Side Test',
+                              isp: result.ispName,
+                              clientIP: result.clientIp,
+                              serverLocation: result.serverLocation,
+                              rawData: JSON.stringify(result)
+                            };
+                            handleComplete(speedTestResult);
+                          } else {
+                            console.log('⚠️ Client-side test returned zero results, trying server-side fallback...');
+                            // Fallback to server-side test
+                            tryServerSideTest();
+                          }
+                        }}
+                        onError={(error, errorData) => {
+                          console.error('❌ Client-side test failed:', error);
+                          console.log('🔄 Falling back to server-side test...');
+                          // Fallback to server-side test
+                          tryServerSideTest();
+                        }}
+                      />
+                    )}
                   </div>
                 )}
               </Dialog.Panel>
