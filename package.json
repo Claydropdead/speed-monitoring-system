@@ -43,19 +43,19 @@
     "react-dom": "^19.0.0",
     "recharts": "^2.15.3",
     "sqlite3": "^5.1.7",
-    "zod": "^3.25.59"
+    "zod": "^3.25.59",
+    "@tailwindcss/postcss": "^4.1.8",
+    "tailwindcss": "^4.1.8",
+    "autoprefixer": "^10.4.21"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4.1.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "autoprefixer": "^10.4.21",
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
     "prettier": "^3.5.3",
-    "tailwindcss": "^4.1.8",
     "tsx": "^4.20.0",
     "typescript": "^5"
   }
