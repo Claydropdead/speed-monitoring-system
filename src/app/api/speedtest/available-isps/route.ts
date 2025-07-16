@@ -33,17 +33,15 @@ export async function GET(request: NextRequest) {
       targetOfficeId = session.user.officeId!;
     }
 
-    // Always use client timezone for time slot detection, fallback to server timezone only if client timezone fails
+    // Use client timezone for time slot detection
     let currentTimeSlot: TimeSlot | null = null;
     
     if (clientTimezone && clientTimezone !== 'UTC') {
-      // Prioritize client timezone
+      // Use client timezone (Philippines time)
       currentTimeSlot = getCurrentTimeSlotForTimezone(clientTimezone);
       console.log(`⏰ Using client timezone (${clientTimezone}) for validation: ${currentTimeSlot}`);
-    } 
-    
-    // Only fallback to server timezone if client timezone fails completely
-    if (!currentTimeSlot && (!clientTimezone || clientTimezone === 'UTC')) {
+    } else {
+      // Fallback to server timezone only if client timezone not provided
       currentTimeSlot = getCurrentTimeSlot();
       console.log(`⏰ Using server timezone as fallback: ${currentTimeSlot}`);
     }
@@ -54,7 +52,7 @@ export async function GET(request: NextRequest) {
         tested: [],
         currentTimeSlot: null,
         message:
-          'Testing is only allowed during designated time slots (6AM-11:59AM, 12PM-12:59PM, 1PM-6PM)',
+          'Testing is only allowed during designated time slots (6AM-11:59AM, 12PM-12:59PM, 1PM-6PM) based on your local time',
       });
     } // Get office with all ISPs using raw query to avoid TypeScript issues
     const office = (await prisma.$queryRaw`
@@ -114,7 +112,7 @@ export async function GET(request: NextRequest) {
       description: isp.description, 
       section: isp.section,
       displayName: getISPDisplayName(isp)
-    }))); // Process today's tests to determine which ISPs have been tested
+    })));    // Process today's tests to determine which ISPs have been tested in current time slot
     const testedISPSections = todaysTests
       .filter(test => isTestFromTodayTimeSlot(test.timestamp, currentTimeSlot))
       .map(test => {

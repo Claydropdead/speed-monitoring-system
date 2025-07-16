@@ -129,28 +129,31 @@ export default function Tests() {
   const runSpeedTest = async () => {
     if (!session?.user?.officeId) return;
 
-    // Check available ISPs first
+    // Fetch available ISPs with local time validation
     await fetchAvailableISPs();
 
-    if (!availableISPs?.currentTimeSlot) {
+    // Check if testing is allowed based on local time
+    if (!availableISPs || !availableISPs.currentTimeSlot) {
       alert(
-        'Testing is not available at this time.\n\nYour Local Time: Currently outside testing hours\nTesting Hours:\n- Morning: 6:00 AM - 11:59 AM\n- Noon: 12:00 PM - 12:59 PM\n- Afternoon: 1:00 PM - 6:00 PM\n\nNote: The system now uses your local timezone for validation.'
+        'Testing is only allowed during designated time slots (6AM-11:59AM, 12PM-12:59PM, 1PM-6PM) based on your local time.\n\nPlease try again during a valid time slot.'
       );
       return;
     }
+    
     if (availableISPs.available.length === 0) {
       const testedISPNames = availableISPs.tested
         .map(item => `${item.isp} (${item.section})`)
         .join(', ');
       alert(
-        `All ISPs have been tested in the current time slot (${availableISPs.currentTimeSlot}).\n\nTested ISPs: ${testedISPNames}\n\nPlease wait for the next time slot to continue testing.`
+        `All ISPs have been tested for the current time slot (${availableISPs.currentTimeSlot}).\n\nTested ISPs: ${testedISPNames}\n\nYou can test again in the next time slot.`
       );
       return;
     }
+    
     if (availableISPs.available.length === 1) {
       // Only one ISP available, select it automatically
       const selectedItem = availableISPs.available[0];
-      setSelectedISP(selectedItem.id); // Use ID for unique identification (Fixed!)
+      setSelectedISP(selectedItem.id);
       setSelectedSection(selectedItem.section);
       setShowSpeedometer(true);
     } else {
@@ -390,7 +393,7 @@ export default function Tests() {
             ) : (
               <div className="flex items-center gap-2 text-orange-600">
                 <AlertTriangle className="h-4 w-4" />
-                <span>Testing is only available during designated time slots (using your local time)</span>
+                <span>Testing is only available during designated time slots (based on your local Philippines time)</span>
                 <div className="ml-4 text-sm text-gray-600">
                   <div>Morning: 6:00 AM - 11:59 AM</div>
                   <div>Noon: 12:00 PM - 12:59 PM</div>
