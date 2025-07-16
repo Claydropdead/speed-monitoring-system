@@ -420,83 +420,124 @@ export { normalizeISPName, validateISPMatch } from './isp-utils';
 // Quick ISP detection using minimal network check
 export async function detectCurrentISP(): Promise<string> {
   try {
-    // Method 1: Try to get ISP info from public IP services
+    console.log('🔍 Starting ISP detection...');
+
+    // Method 1: Try to get ISP info from Railway-friendly public IP services
     const allowedServices = [
       'https://ipapi.co/json/',
-      'https://api.ipify.org?format=json',
-      'https://httpbin.org/ip',
+      'https://ipwhois.app/json/',
+      'https://api.ipgeolocation.io/ipgeo?apiKey=',
+      'https://httpbin.org/ip', // Fallback for basic IP
     ];
 
     for (const service of allowedServices) {
       try {
+        console.log(`🌐 Trying ISP detection service: ${service}`);
+        
         // ⚠️ SECURITY FIX: Use fetch instead of curl to avoid command injection
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // Reduced timeout for production
         
         const response = await fetch(service, {
           signal: controller.signal,
           headers: {
             'User-Agent': 'SpeedMonitoringSystem/1.0',
+            'Accept': 'application/json',
           },
         });
         
         clearTimeout(timeoutId);
         
         if (!response.ok) {
+          console.log(`❌ Service ${service} returned ${response.status}`);
           continue;
         }
         
         const ipData = await response.json();
+        console.log(`📡 IP service response:`, ipData);
 
+        // Try multiple ISP field names
+        let detectedISP = null;
         if (ipData.org) {
-          return ipData.org;
+          detectedISP = ipData.org;
         } else if (ipData.isp) {
-          return ipData.isp;
+          detectedISP = ipData.isp;
+        } else if (ipData.as) {
+          detectedISP = ipData.as;
+        } else if (ipData.connection?.org) {
+          detectedISP = ipData.connection.org;
+        }
+
+        if (detectedISP && detectedISP !== 'Unknown') {
+          console.log(`✅ ISP detected from service: ${detectedISP}`);
+          return detectedISP;
         }
       } catch (ipError) {
+        console.log(`❌ IP service error:`, ipError instanceof Error ? ipError.message : String(ipError));
         continue;
       }
     }
 
-    // Method 2: Use speedtest with minimal flags to just get connection info
+    // Method 2: Use speedtest CLI with proper path detection for Railway
     try {
-      const { stdout } = await execAsync(
-        'speedtest --format=json --accept-license --accept-gdpr --selection-details',
-        {
-          timeout: 30000, // 30 second timeout for ISP detection
+      console.log('🚀 Trying Speedtest CLI for ISP detection...');
+      
+      // Try different CLI paths for Railway
+      const possibleCLIPaths = [
+        '/usr/local/bin/speedtest', // Our Dockerfile installation path
+        'speedtest',              // Standard PATH
+        '/usr/bin/speedtest',       // Alternative system path
+      ];
+      
+      for (const cliPath of possibleCLIPaths) {
+        try {
+          console.log(`🔍 Trying CLI path: ${cliPath}`);
+          
+          const { stdout } = await execAsync(
+            `${cliPath} --format=json --accept-license --accept-gdpr --selection-details`,
+            {
+              timeout: 25000, // 25 second timeout for Railway
+            }
+          );
+          
+          const result = JSON.parse(stdout);
+          console.log(`📊 Speedtest CLI response:`, result);
+
+          // Extract ISP from various possible locations in the result
+          let detectedISP = null;
+
+          if (result.client?.isp) {
+            detectedISP = result.client.isp;
+          } else if (result.interface?.externalIsp) {
+            detectedISP = result.interface.externalIsp;
+          } else if (result.isp) {
+            detectedISP = result.isp;
+          } else if (result.server?.sponsor) {
+            detectedISP = result.server.sponsor;
+          }
+
+          if (detectedISP && detectedISP !== 'Unknown ISP') {
+            console.log(`✅ ISP detected from CLI: ${detectedISP}`);
+            return detectedISP;
+          }
+        } catch (cliError) {
+          console.log(`❌ CLI path ${cliPath} failed:`, cliError instanceof Error ? cliError.message : String(cliError));
+          continue;
         }
-      );
-      const result = JSON.parse(stdout);
-
-      // Extract ISP from various possible locations in the result
-      let detectedISP = 'Unknown ISP';
-
-      if (result.client?.isp) {
-        detectedISP = result.client.isp;
-      } else if (result.interface?.externalIsp) {
-        detectedISP = result.interface.externalIsp;
-      } else if (result.isp) {
-        detectedISP = result.isp;
       }
-
-      return detectedISP;
     } catch (speedtestError) {
-      // Fall back to next method
+      console.log(`❌ Speedtest CLI detection failed:`, speedtestError instanceof Error ? speedtestError.message : String(speedtestError));
     }
 
-    // Method 3: Fallback to a simple speedtest with retry
-    try {
-      const result = await trySpeedtestWithRetry(() => {}, 1);
-      if (result.ispName && result.ispName !== 'Unknown ISP') {
-        return result.ispName;
-      }
-    } catch (fallbackError) {
-      // All methods failed
-    }
+    // Method 3: Fallback - skip ISP detection and let user proceed
+    console.log('⚠️ All ISP detection methods failed, proceeding without pre-detection');
+    
   } catch (error) {
-    console.error('All ISP detection methods failed:', error);
+    console.error('❌ ISP detection error:', error instanceof Error ? error.message : String(error));
   }
 
-  // Final fallback: Return a generic message that will trigger user selection
-  return 'Unknown ISP - Please select manually';
+  // Return null to indicate ISP detection failed - this will allow the test to proceed
+  // The CLI will detect the ISP during the actual speed test
+  console.log('🔄 ISP detection failed, will use CLI detection during speed test');
+  return 'CLI-Detected'; // Special marker to indicate CLI should detect ISP
 }
