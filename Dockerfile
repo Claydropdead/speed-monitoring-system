@@ -43,9 +43,6 @@ RUN npm run build:docker
 
 # Note: Keeping all dependencies for runtime CSS processing
 
-# Remove dev dependencies after build
-RUN npm prune --production
-
 # Expose port
 EXPOSE 3000
 
