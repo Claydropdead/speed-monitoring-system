@@ -219,6 +219,40 @@ The codebase follows Next.js App Router conventions:
 
 ## Deployment
 
+### Railway Deployment (Recommended)
+
+Railway automatically handles Speedtest CLI installation and PostgreSQL setup:
+
+1. **Prepare for Railway**
+   ```bash
+   # Your app is already configured with:
+   # - Dockerfile for Speedtest CLI installation
+   # - PostgreSQL-compatible Prisma schema
+   # - Railway configuration files
+   ```
+
+2. **Deploy to Railway**
+   - Push your code to GitHub
+   - Connect your GitHub repo to Railway
+   - Add PostgreSQL service (Railway auto-generates DATABASE_URL)
+   - Set environment variables:
+     ```
+     NEXTAUTH_URL=https://your-app-name.railway.app
+     NEXTAUTH_SECRET=your-generated-secret
+     NODE_ENV=production
+     ```
+
+3. **Post-deployment**
+   ```bash
+   # Railway will automatically:
+   # - Install Ookla Speedtest CLI
+   # - Set up PostgreSQL database
+   # - Run database migrations
+   # - Build and start your app
+   ```
+
+### Manual Deployment
+
 1. **Build the application**
 
    ```bash

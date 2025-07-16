@@ -1,0 +1,15 @@
+[phases.setup]
+nixPkgs = ["nodejs_18", "wget", "gnupg2", "apt"]
+
+[phases.install]
+cmds = [
+    "npm ci",
+    "chmod +x install-speedtest.sh",
+    "./install-speedtest.sh"
+]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm start"

@@ -76,6 +76,17 @@ export interface SpeedTestProgress {
 
 export type ProgressCallback = (progress: SpeedTestProgress) => void;
 
+// Check if Speedtest CLI is available
+async function checkSpeedtestCLI(): Promise<boolean> {
+  try {
+    await execAsync('speedtest --version', { timeout: 5000 });
+    return true;
+  } catch (error) {
+    console.error('Speedtest CLI not available:', error);
+    return false;
+  }
+}
+
 // Convert bits per second to Mbps using web-compatible conversion
 const bitsToMbps = (bits: number): number => {
   // Use Method 3 (Web×8) which matches web interface results
@@ -125,7 +136,7 @@ async function trySpeedtestWithRetry(
     });
 
     const speedtest = spawn('speedtest', args, {
-      shell: true,
+      shell: false, // ⚠️ SECURITY FIX: Disable shell to prevent command injection
       timeout: 60000, // Reduced timeout per attempt
     });
 
@@ -157,7 +168,11 @@ async function trySpeedtestWithRetry(
     speedtest.stderr.on('data', data => {
       errorOutput += data.toString();
       const errorStr = data.toString();
-      console.error(`Attempt ${attempt} stderr:`, errorStr);
+      
+      // Only log errors in development
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`Attempt ${attempt} stderr:`, errorStr);
+      }
 
       // Check for specific protocol errors early
       if (errorStr.includes('Protocol error') || errorStr.includes('Did not receive HELLO')) {
@@ -193,8 +208,11 @@ async function trySpeedtestWithRetry(
 
           resolve(result);
         } catch (e) {
-          console.error(`Attempt ${attempt} parse error:`, e);
-          console.error('Raw output:', output.substring(0, 500) + '...');
+          // Only log detailed errors in development
+          if (process.env.NODE_ENV === 'development') {
+            console.error(`Attempt ${attempt} parse error:`, e);
+            console.error('Raw output:', output.substring(0, 500) + '...');
+          }
 
           if (attempt < maxAttempts) {
             try {
@@ -260,6 +278,17 @@ export async function runSpeedTestWithProgress(
   selectedISP?: string
 ): Promise<SpeedTestData & { ispValidation?: any }> {
   try {
+    // Check if Speedtest CLI is available
+    const cliAvailable = await checkSpeedtestCLI();
+    if (!cliAvailable) {
+      onProgress({
+        phase: 'error',
+        progress: 0,
+        error: 'Speedtest CLI is not available on this system. Please ensure Ookla Speedtest CLI is installed.'
+      });
+      throw new Error('Speedtest CLI is not available on this system. Please ensure Ookla Speedtest CLI is installed.');
+    }
+
     // First, try the enhanced retry mechanism
     const result = await trySpeedtestWithRetry(onProgress, 1);
     // Validate ISP if selectedISP is provided
@@ -323,6 +352,12 @@ export async function runSpeedTest(
   selectedISP?: string
 ): Promise<SpeedTestData & { ispValidation?: any }> {
   try {
+    // Check if Speedtest CLI is available
+    const cliAvailable = await checkSpeedtestCLI();
+    if (!cliAvailable) {
+      throw new Error('Speedtest CLI is not available on this system. Please ensure Ookla Speedtest CLI is installed.');
+    }
+
     // Use the enhanced retry mechanism with a simple progress callback
     const result = await trySpeedtestWithRetry(() => {}, 1);
 
@@ -386,18 +421,32 @@ export { normalizeISPName, validateISPMatch } from './isp-utils';
 export async function detectCurrentISP(): Promise<string> {
   try {
     // Method 1: Try to get ISP info from public IP services
-    const ipServices = [
+    const allowedServices = [
       'https://ipapi.co/json/',
       'https://api.ipify.org?format=json',
       'https://httpbin.org/ip',
     ];
 
-    for (const service of ipServices) {
+    for (const service of allowedServices) {
       try {
-        const { stdout: ipInfo } = await execAsync(
-          `curl -s "${service}" --connect-timeout 10 --max-time 15`
-        );
-        const ipData = JSON.parse(ipInfo);
+        // ⚠️ SECURITY FIX: Use fetch instead of curl to avoid command injection
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        
+        const response = await fetch(service, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'SpeedMonitoringSystem/1.0',
+          },
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          continue;
+        }
+        
+        const ipData = await response.json();
 
         if (ipData.org) {
           return ipData.org;

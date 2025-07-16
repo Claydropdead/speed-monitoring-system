@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "prisma generate && prisma db push && next build",
     "start": "next start",
+    "postinstall": "prisma generate",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "format": "prettier --write .",
@@ -16,7 +17,8 @@
     "db:generate": "prisma generate",
     "setup": "powershell -ExecutionPolicy Bypass -File setup.ps1",
     "setup:speedtest": "powershell -Command \"if (Get-Command winget -ErrorAction SilentlyContinue) { winget install Ookla.Speedtest.CLI } else { Write-Host 'Please install Speedtest CLI manually from https://www.speedtest.net/apps/cli' }\"",
-    "check:speedtest": "powershell -Command \"if (Get-Command speedtest -ErrorAction SilentlyContinue) { speedtest --version } else { Write-Host 'Speedtest CLI not found. Run: npm run setup:speedtest' }\""
+    "check:speedtest": "powershell -Command \"if (Get-Command speedtest -ErrorAction SilentlyContinue) { speedtest --version } else { Write-Host 'Speedtest CLI not found. Run: npm run setup:speedtest' }\"",
+    "db:seed:prod": "NODE_ENV=production tsx prisma/seed.ts"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",
@@ -24,6 +26,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node-cron": "^3.0.11",
+    "@types/pg": "^8.15.4",
     "bcryptjs": "^3.0.2",
     "date-fns": "^4.1.0",
     "eventsource": "^4.0.0",
@@ -33,6 +36,7 @@
     "next-auth": "^4.24.11",
     "node-cron": "^4.1.0",
     "node-fetch": "^3.3.2",
+    "pg": "^8.16.3",
     "prisma": "^6.9.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
