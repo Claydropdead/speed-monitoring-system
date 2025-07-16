@@ -3,10 +3,10 @@ import { TimeSlot } from '@prisma/client';
 
 /**
  * Get the configured timezone for the application
- * Defaults to UTC for Railway deployment consistency
+ * Defaults to Asia/Manila (Philippines timezone) for better user experience
  */
 export function getAppTimezone(): string {
-  return process.env.TZ || process.env.TIMEZONE || 'UTC';
+  return process.env.TZ || process.env.TIMEZONE || 'Asia/Manila';
 }
 
 /**

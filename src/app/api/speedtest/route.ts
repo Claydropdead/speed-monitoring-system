@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { runSpeedTest, validateSpeedTestData } from '@/lib/speedtest';
 import { normalizeISPName, resolveISPFromId } from '@/lib/isp-utils';
-import { getCurrentTimeSlotForTimezone, getCurrentTimeSlot } from '@/lib/timezone';
+import { getCurrentTimeSlotForTimezone, getCurrentTimeSlot, getAppTimezone } from '@/lib/timezone';
 import { TimeSlot } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
@@ -101,27 +101,25 @@ export async function POST(request: NextRequest) {
       targetOfficeId = session.user?.officeId!;
     }
 
-    // Always use client timezone for time slot detection, ignore server time
+    // Use server timezone (Manila) primarily, since server is now configured for Philippines time
     let currentTimeSlot: TimeSlot | null = null;
     
-    if (timezone && timezone !== 'UTC') {
-      // Prioritize client timezone
-      currentTimeSlot = getCurrentTimeSlotForTimezone(timezone);
-      console.log(`⏰ Using client timezone (${timezone}) for validation: ${currentTimeSlot}`);
-    } 
+    // Server timezone is now Manila, so use it first
+    currentTimeSlot = getCurrentTimeSlot();
+    console.log(`⏰ Using server timezone (${getAppTimezone()}) for validation: ${currentTimeSlot}`);
     
-    // Only fallback to server timezone if client timezone fails completely
-    if (!currentTimeSlot && (!timezone || timezone === 'UTC')) {
-      currentTimeSlot = getCurrentTimeSlot();
-      console.log(`⏰ Using server timezone as fallback: ${currentTimeSlot}`);
+    // Only use client timezone if server timezone fails (shouldn't happen now)
+    if (!currentTimeSlot && timezone && timezone !== 'UTC') {
+      currentTimeSlot = getCurrentTimeSlotForTimezone(timezone);
+      console.log(`⏰ Fallback to client timezone (${timezone}) for validation: ${currentTimeSlot}`);
     }
 
     if (!currentTimeSlot) {
       return NextResponse.json({ 
         error: 'Testing is only allowed during designated time slots (6AM-11:59AM, 12PM-12:59PM, 1PM-6PM)',
         currentTime: new Date().toISOString(),
-        timezone: timezone || 'UTC',
-        message: 'Using your local time for validation'
+        timezone: getAppTimezone(),
+        message: 'Using Philippines timezone for validation'
       }, { status: 400 });
     }
 

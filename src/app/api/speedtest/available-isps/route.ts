@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { TimeSlot } from '@prisma/client';
 import { normalizeISPName, parseISPsFromOffice, getISPDisplayName } from '@/lib/isp-utils';
-import { getCurrentTimeSlot, getCurrentTimeSlotForTimezone, isTestFromTodayTimeSlot, getTimeSlotInfo } from '@/lib/timezone';
+import { getCurrentTimeSlot, getCurrentTimeSlotForTimezone, isTestFromTodayTimeSlot, getTimeSlotInfo, getAppTimezone } from '@/lib/timezone';
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,17 +33,17 @@ export async function GET(request: NextRequest) {
       targetOfficeId = session.user.officeId!;
     }
 
-    // Use client timezone for time slot detection
+    // Use server timezone (Manila) primarily, since server is now configured for Philippines time
     let currentTimeSlot: TimeSlot | null = null;
     
-    if (clientTimezone && clientTimezone !== 'UTC') {
-      // Use client timezone (Philippines time)
+    // Server timezone is now Manila, so use it first
+    currentTimeSlot = getCurrentTimeSlot();
+    console.log(`⏰ Using server timezone (${getAppTimezone()}) for validation: ${currentTimeSlot}`);
+    
+    // Only use client timezone if server timezone fails (shouldn't happen now)
+    if (!currentTimeSlot && clientTimezone && clientTimezone !== 'UTC') {
       currentTimeSlot = getCurrentTimeSlotForTimezone(clientTimezone);
-      console.log(`⏰ Using client timezone (${clientTimezone}) for validation: ${currentTimeSlot}`);
-    } else {
-      // Fallback to server timezone only if client timezone not provided
-      currentTimeSlot = getCurrentTimeSlot();
-      console.log(`⏰ Using server timezone as fallback: ${currentTimeSlot}`);
+      console.log(`⏰ Fallback to client timezone (${clientTimezone}) for validation: ${currentTimeSlot}`);
     }
 
     if (!currentTimeSlot) {
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         tested: [],
         currentTimeSlot: null,
         message:
-          'Testing is only allowed during designated time slots (6AM-11:59AM, 12PM-12:59PM, 1PM-6PM) based on your local time',
+          'Testing is only allowed during designated time slots (6AM-11:59AM, 12PM-12:59PM, 1PM-6PM) based on Philippines time',
       });
     } // Get office with all ISPs using raw query to avoid TypeScript issues
     const office = (await prisma.$queryRaw`
