@@ -85,9 +85,10 @@ export async function GET(request: NextRequest) {
         message:
           'Testing is only allowed during designated time slots (6AM-11:59AM, 12PM-12:59PM, 1PM-6PM) based on Philippines time',
       });
-    } // Get office with all ISPs using raw query to avoid TypeScript issues
+    }    // Get office with all ISPs using raw query to avoid TypeScript issues
+    // Note: PostgreSQL converts column names to lowercase, so we need to use lowercase names
     const office = (await prisma.$queryRaw`
-      SELECT id, isp, isps, sectionISPs FROM offices WHERE id = ${targetOfficeId}
+      SELECT id, isp, isps, sectionisps FROM offices WHERE id = ${targetOfficeId}
     `) as any[];
 
     if (!office || office.length === 0) {
@@ -96,8 +97,15 @@ export async function GET(request: NextRequest) {
 
     const officeData = office[0];
     
+    // Normalize column names for PostgreSQL compatibility
+    // PostgreSQL converts column names to lowercase, so we need to map them back
+    const normalizedOfficeData = {
+      ...officeData,
+      sectionISPs: officeData.sectionisps // Map lowercase back to camelCase
+    };
+    
     // Use the new ISP parsing utility to get properly structured ISPs
-    const parsedISPs = parseISPsFromOffice(officeData);
+    const parsedISPs = parseISPsFromOffice(normalizedOfficeData);
     
     // Convert to the format expected by the frontend
     let allISPs: Array<{ isp: string; section: string; id: string; displayName: string }> = [];
