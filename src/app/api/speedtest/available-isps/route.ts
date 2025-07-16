@@ -14,10 +14,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Debug session data
+    console.log(`🔧 [DEBUG] Session user:`, {
+      id: session.user?.id,
+      email: session.user?.email,
+      officeId: session.user?.officeId,
+      role: (session.user as any)?.role
+    });
+
     // Allow admin users to access this endpoint
     const isAdmin = (session.user as any)?.role === 'ADMIN';
     if (!isAdmin && !session.user?.officeId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      console.log(`❌ [DEBUG] User has no office assigned - officeId: ${session.user?.officeId}, isAdmin: ${isAdmin}`);
+      return NextResponse.json({ 
+        error: 'Unauthorized - No office assigned', 
+        debug: { 
+          userEmail: session.user?.email,
+          officeId: session.user?.officeId,
+          isAdmin 
+        } 
+      }, { status: 401 });
     }
 
     // Get the correct office ID - for admin users, they can query any office
