@@ -3,7 +3,7 @@
 import { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X } from 'lucide-react';
-import Speedometer from './speedometer';
+import SimpleSpeedTest from './simple-speed-test';
 
 interface SpeedTestResult {
   download: number;
@@ -62,15 +62,57 @@ export default function SpeedTestModal({
     }
   }, [isOpen]); // Remove other dependencies to prevent re-triggering
 
-  const handleComplete = (result: SpeedTestResult) => {
-    setIsTestRunning(false); // Set to false when test completes
+  const handleComplete = async (result: SpeedTestResult) => {
+    setIsTestRunning(false);
     setHasCompletedTest(true);
     setShowResults(true);
     setError(null);
-    onComplete?.(result);
 
-    // DON'T auto-close modal - let user decide when to close
-    // User can manually close by clicking the X button or clicking outside
+    // Save the result to database
+    try {
+      const body = {
+        officeId,
+        runTest: true,
+        selectedISP,
+        testResult: {
+          download: result.download,
+          upload: result.upload,
+          ping: result.ping,
+          jitter: result.jitter || 0,
+          packetLoss: result.packetLoss || 0,
+          serverId: result.serverId || 'client-side',
+          serverName: result.serverName || 'Client-Side Test',
+          ispName: 'Client-Detected', // Will be updated with actual ISP from test
+          rawData: JSON.stringify({
+            testType: 'client-side',
+            section: selectedSection,
+            timestamp: new Date().toISOString(),
+            source: 'speedtest.net'
+          })
+        },
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      };
+
+      const response = await fetch('/api/speedtest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Failed to save speed test result:', errorData);
+      } else {
+        console.log('✅ Client-side speed test result saved successfully');
+      }
+    } catch (error) {
+      console.error('❌ Error saving speed test result:', error);
+      // Don't fail the UI if saving fails
+    }
+
+    onComplete?.(result);
   };
   const handleError = (errorMessage: string, errorData?: any) => {
     setIsTestRunning(false);
@@ -210,16 +252,24 @@ export default function SpeedTestModal({
                   </div>
                 ) : (
                   <div>
-                    {' '}
-                    <Speedometer
-                      key={`speedometer-${selectedISP || 'default'}-${selectedSection || 'default'}`}
-                      isRunning={isTestRunning}
-                      officeId={officeId}
-                      selectedISP={selectedISP}
-                      selectedSection={selectedSection}
-                      onComplete={handleComplete}
-                      onError={handleError}
-                      onTestStart={() => {
+                    <SimpleSpeedTest
+                      onComplete={(result) => {
+                        // Convert simple result to our format
+                        const speedTestResult: SpeedTestResult = {
+                          download: result.download,
+                          upload: result.upload,
+                          ping: result.ping,
+                          jitter: 0,
+                          packetLoss: 0,
+                          serverId: 'client-side',
+                          serverName: 'Client-Side Test'
+                        };
+                        handleComplete(speedTestResult);
+                      }}
+                      onError={(error) => {
+                        handleError(error);
+                      }}
+                      onStart={() => {
                         setIsTestRunning(true);
                         setShowResults(false);
                         setError(null);
