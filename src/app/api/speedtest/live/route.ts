@@ -6,6 +6,7 @@ import { spawn } from 'child_process';
 import { validateISPMatch, detectCurrentISP } from '@/lib/speedtest';
 import { normalizeISPName, resolveISPFromId } from '@/lib/isp-utils';
 import { getCurrentTimeSlotForTimezone, getCurrentTimeSlot } from '@/lib/timezone';
+import { TimeSlot } from '@prisma/client';
 
 // Track active speedtest requests
 const activeRequests = new Set<string>();
@@ -53,10 +54,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Check if current time allows testing (use client timezone if provided)
-  const currentTimeSlot = timezone !== 'UTC' 
-    ? getCurrentTimeSlotForTimezone(timezone) 
-    : getCurrentTimeSlot();
+  // Always use client timezone for time slot detection, ignore server time
+  let currentTimeSlot: TimeSlot | null = null;
+  
+  if (timezone && timezone !== 'UTC') {
+    // Prioritize client timezone
+    currentTimeSlot = getCurrentTimeSlotForTimezone(timezone);
+    console.log(`⏰ [${requestId}] Using client timezone (${timezone}) for validation: ${currentTimeSlot}`);
+  } 
+  
+  // Only fallback to server timezone if client timezone fails completely  
+  if (!currentTimeSlot && (!timezone || timezone === 'UTC')) {
+    currentTimeSlot = getCurrentTimeSlot();
+    console.log(`⏰ [${requestId}] Using server timezone as fallback: ${currentTimeSlot}`);
+  }
 
   if (!currentTimeSlot) {
     console.log(`⏰ [${requestId}] Speed test blocked - outside testing hours (timezone: ${timezone})`);
@@ -64,7 +75,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       error: 'Testing is only allowed during designated time slots (6AM-11:59AM, 12PM-12:59PM, 1PM-6PM)',
       currentTime: new Date().toISOString(),
-      timezone: timezone
+      timezone: timezone,
+      message: 'Using your local time for validation'
     }, { status: 400 });
   }
 

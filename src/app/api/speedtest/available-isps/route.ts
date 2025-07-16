@@ -33,10 +33,20 @@ export async function GET(request: NextRequest) {
       targetOfficeId = session.user.officeId!;
     }
 
-    // Use client timezone for time slot detection if provided, otherwise use server timezone
-    const currentTimeSlot = clientTimezone !== 'UTC' 
-      ? getCurrentTimeSlotForTimezone(clientTimezone) 
-      : getCurrentTimeSlot();
+    // Always use client timezone for time slot detection, fallback to server timezone only if client timezone fails
+    let currentTimeSlot: TimeSlot | null = null;
+    
+    if (clientTimezone && clientTimezone !== 'UTC') {
+      // Prioritize client timezone
+      currentTimeSlot = getCurrentTimeSlotForTimezone(clientTimezone);
+      console.log(`⏰ Using client timezone (${clientTimezone}) for validation: ${currentTimeSlot}`);
+    } 
+    
+    // Only fallback to server timezone if client timezone fails completely
+    if (!currentTimeSlot && (!clientTimezone || clientTimezone === 'UTC')) {
+      currentTimeSlot = getCurrentTimeSlot();
+      console.log(`⏰ Using server timezone as fallback: ${currentTimeSlot}`);
+    }
 
     if (!currentTimeSlot) {
       return NextResponse.json({
