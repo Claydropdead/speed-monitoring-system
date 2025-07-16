@@ -18,15 +18,24 @@ COPY prisma ./prisma/
 # Install dependencies (including dev dependencies for build)
 RUN npm ci
 
-# Install Ookla Speedtest CLI
-RUN wget -O speedtest.tgz "https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-$(uname -m).tgz" \
+# Install Ookla Speedtest CLI with improved error handling
+RUN echo "Installing Ookla Speedtest CLI..." \
+    && wget -O speedtest.tgz "https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-$(uname -m).tgz" \
     && tar -xzf speedtest.tgz \
     && mv speedtest /usr/local/bin/ \
     && rm speedtest.tgz \
-    && chmod +x /usr/local/bin/speedtest
+    && chmod +x /usr/local/bin/speedtest \
+    && echo "Speedtest CLI installed successfully" \
+    && ls -la /usr/local/bin/speedtest
 
-# Accept Speedtest license (non-interactive)
-RUN speedtest --accept-license --accept-gdpr --version || true
+# Accept Speedtest license and verify installation
+RUN echo "Verifying Speedtest CLI installation..." \
+    && /usr/local/bin/speedtest --version \
+    && /usr/local/bin/speedtest --accept-license --accept-gdpr --version \
+    && echo "Speedtest CLI verification completed"
+
+# Ensure /usr/local/bin is in PATH for runtime
+ENV PATH="/usr/local/bin:${PATH}"
 
 # Copy application code
 COPY . .

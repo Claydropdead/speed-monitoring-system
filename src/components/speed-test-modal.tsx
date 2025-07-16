@@ -4,6 +4,8 @@ import { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X } from 'lucide-react';
 import SimpleSpeedTest from './simple-speed-test';
+import AutomatedSpeedTest from './automated-speed-test';
+import Speedometer from './speedometer';
 
 interface SpeedTestResult {
   download: number;
@@ -14,6 +16,19 @@ interface SpeedTestResult {
   serverId?: string;
   serverName?: string;
   resultUrl?: string; // Ookla result URL
+  isp?: string; // ISP detected from test
+  ispName?: string; // ISP name from server-side test
+  clientIP?: string; // Client IP from test
+  clientIp?: string; // Alternative naming from server-side
+  serverLocation?: string; // Server location from test
+  rawData?: string; // Raw test data
+  ispValidation?: { // ISP validation from server-side
+    isMatch: boolean;
+    confidence: number;
+    detectedCanonical: string;
+    selectedCanonical: string;
+    suggestion?: string;
+  };
 }
 
 interface SpeedTestModalProps {
@@ -80,14 +95,18 @@ export default function SpeedTestModal({
           ping: result.ping,
           jitter: result.jitter || 0,
           packetLoss: result.packetLoss || 0,
-          serverId: result.serverId || 'client-side',
-          serverName: result.serverName || 'Client-Side Test',
-          ispName: 'Client-Detected', // Will be updated with actual ISP from test
+          serverId: result.serverId || 'server-side',
+          serverName: result.serverName || 'Server-Side Test',
+          ispName: result.isp || result.ispName || 'Server-Detected', // Use ISP from server-side test
           rawData: JSON.stringify({
-            testType: 'client-side',
+            testType: 'server-side-ookla-cli',
             section: selectedSection,
             timestamp: new Date().toISOString(),
-            source: 'speedtest.net'
+            source: 'ookla-speedtest-cli',
+            clientIP: result.clientIP,
+            serverLocation: result.serverLocation,
+            originalRawData: result.rawData,
+            ispValidation: result.ispValidation // Include ISP validation from server
           })
         },
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -252,24 +271,32 @@ export default function SpeedTestModal({
                   </div>
                 ) : (
                   <div>
-                    <SimpleSpeedTest
+                    <Speedometer
+                      isRunning={isTestRunning}
+                      officeId={officeId}
+                      selectedISP={selectedISP}
+                      selectedSection={selectedSection}
                       onComplete={(result) => {
-                        // Convert simple result to our format
+                        // Convert server-side result to our format
                         const speedTestResult: SpeedTestResult = {
                           download: result.download,
                           upload: result.upload,
                           ping: result.ping,
-                          jitter: 0,
-                          packetLoss: 0,
-                          serverId: 'client-side',
-                          serverName: 'Client-Side Test'
+                          jitter: result.jitter || 0,
+                          packetLoss: result.packetLoss || 0,
+                          serverId: result.serverId || 'server-side',
+                          serverName: result.serverName || 'Server-Side Test',
+                          isp: result.ispName,
+                          clientIP: result.clientIp,
+                          serverLocation: result.serverLocation,
+                          rawData: JSON.stringify(result)
                         };
                         handleComplete(speedTestResult);
                       }}
-                      onError={(error) => {
-                        handleError(error);
+                      onError={(error, errorData) => {
+                        handleError(error, errorData);
                       }}
-                      onStart={() => {
+                      onTestStart={() => {
                         setIsTestRunning(true);
                         setShowResults(false);
                         setError(null);

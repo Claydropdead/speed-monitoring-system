@@ -151,7 +151,20 @@ export async function GET(request: NextRequest) {
       // Run REAL speedtest with progress updates
       console.log(`⚡ [${requestId}] Starting speedtest CLI process`);
       testStartTime = Date.now();
-      const speedtest = spawn('speedtest', [
+      
+      // Try different possible paths for the CLI (Railway deployment consideration)
+      const possibleCLIPaths = [
+        '/usr/local/bin/speedtest', // Our Dockerfile installation path (try first)
+        'speedtest',              // Standard PATH
+        '/usr/bin/speedtest',       // Alternative system path
+      ];
+      
+      let speedtestCommand = possibleCLIPaths[0]; // Start with most likely path for Railway
+      
+      // Check which path works (we'll use the first one, but log attempts)
+      console.log(`🔍 [${requestId}] Using speedtest CLI path: ${speedtestCommand}`);
+      
+      const speedtest = spawn(speedtestCommand, [
         '--format=json',
         '--accept-license',
         '--accept-gdpr',
@@ -664,12 +677,25 @@ export async function GET(request: NextRequest) {
         if (isControllerClosed) return;
 
         console.error(`💥 [${requestId}] Speedtest process error:`, error);
-        safeEnqueue(
-          `data: ${JSON.stringify({
-            type: 'error',
-            error: error.message,
-          })}\n\n`
-        );
+        
+        // Check if this is a "command not found" error
+        if (error.message.includes('ENOENT') || error.message.includes('not found')) {
+          console.error(`🚨 [${requestId}] Speedtest CLI not found! Possible installation issue.`);
+          safeEnqueue(
+            `data: ${JSON.stringify({
+              type: 'error',
+              error: 'Speedtest CLI not found. Please verify the installation on the server.',
+              technical_details: `Command: ${speedtestCommand}, Error: ${error.message}`,
+            })}\n\n`
+          );
+        } else {
+          safeEnqueue(
+            `data: ${JSON.stringify({
+              type: 'error',
+              error: `Speedtest process failed: ${error.message}`,
+            })}\n\n`
+          );
+        }
         safeClose();
       }); // Handle client disconnect
       request.signal?.addEventListener('abort', () => {
