@@ -420,152 +420,230 @@ export { normalizeISPName, validateISPMatch } from './isp-utils';
 // Quick ISP detection using minimal network check
 export async function detectCurrentISP(): Promise<string> {
   try {
-    console.log('🔍 Starting ISP detection...');
+    console.log('🔍 Starting enhanced ISP detection for Railway production...');
 
-    // Method 1: Try to get ISP info from Railway-friendly public IP services
-    const allowedServices = [
-      'https://httpbin.org/ip', // This should work in most environments
+    // Method 1: Try multiple reliable IP services in parallel for faster detection
+    const ipServices = [
       'https://ipapi.co/json/',
+      'https://ipwhois.app/json/',
+      'https://api.ipgeolocation.io/ipgeo?apiKey=',
+      'https://httpbin.org/ip',
       'https://api.ipify.org?format=json',
+      'https://ip-api.com/json/',
+      'https://ipinfo.io/json',
     ];
 
-    for (const service of allowedServices) {
+    // Try services in parallel for faster results
+    const servicePromises = ipServices.map(async (service) => {
       try {
-        console.log(`🌐 Trying ISP detection service: ${service}`);
-        
-        // ⚠️ SECURITY FIX: Use fetch instead of curl to avoid command injection
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // Reduced timeout for production
+        console.log(`🌐 Trying ISP service: ${service}`);
         
         const response = await fetch(service, {
-          signal: controller.signal,
+          method: 'GET',
           headers: {
-            'User-Agent': 'SpeedMonitoringSystem/1.0',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
           },
+          signal: AbortSignal.timeout(8000),
         });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          console.log(`❌ Service ${service} returned ${response.status}`);
-          continue;
-        }
-        
-        const ipData = await response.json();
-        console.log(`📡 IP service response:`, ipData);
 
-        // Special handling for httpbin.org/ip (just returns IP)
-        if (service.includes('httpbin.org') && ipData.origin) {
-          console.log(`🌐 Got IP from httpbin: ${ipData.origin}`);
-          // Try to get ISP info using this IP
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`📡 Response from ${service}:`, JSON.stringify(data, null, 2));
+
+        // Handle httpbin.org/ip special case
+        if (service.includes('httpbin.org') && data.origin) {
+          console.log(`🌐 Got IP from httpbin: ${data.origin}`);
+          // Use the IP to get ISP info from another service
           try {
-            const ispResponse = await fetch(`https://ipapi.co/${ipData.origin}/json/`, {
-              signal: AbortSignal.timeout(5000),
+            const ispResponse = await fetch(`https://ipapi.co/${data.origin}/json/`, {
               headers: {
-                'User-Agent': 'SpeedMonitoringSystem/1.0',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Accept': 'application/json',
               },
+              signal: AbortSignal.timeout(5000),
             });
             
             if (ispResponse.ok) {
               const ispData = await ispResponse.json();
-              console.log(`📡 ISP data for ${ipData.origin}:`, ispData);
-              
-              let detectedISP = ispData.org || ispData.isp || ispData.as;
-              if (detectedISP && detectedISP !== 'Unknown') {
-                console.log(`✅ ISP detected via IP lookup: ${detectedISP}`);
-                return detectedISP;
+              const detectedISP = ispData.org || ispData.isp || ispData.as;
+              if (detectedISP && detectedISP !== 'Unknown' && !detectedISP.toLowerCase().includes('railway')) {
+                return { service, isp: detectedISP };
               }
             }
-          } catch (ispError) {
-            console.log(`⚠️ ISP lookup failed for ${ipData.origin}`);
+          } catch (e) {
+            console.log(`⚠️ Secondary ISP lookup failed`);
           }
-          continue;
+          return null;
         }
 
-        // Try multiple ISP field names
+        // Extract ISP from response with multiple fallback fields
         let detectedISP = null;
-        if (ipData.org) {
-          detectedISP = ipData.org;
-        } else if (ipData.isp) {
-          detectedISP = ipData.isp;
-        } else if (ipData.as) {
-          detectedISP = ipData.as;
-        } else if (ipData.connection?.org) {
-          detectedISP = ipData.connection.org;
+        
+        // Try different property names that various services use
+        if (data.org && !data.org.toLowerCase().includes('railway')) {
+          detectedISP = data.org;
+        } else if (data.isp && !data.isp.toLowerCase().includes('railway')) {
+          detectedISP = data.isp;
+        } else if (data.as && !data.as.toLowerCase().includes('railway')) {
+          detectedISP = data.as;
+        } else if (data.connection?.org && !data.connection.org.toLowerCase().includes('railway')) {
+          detectedISP = data.connection.org;
+        } else if (data.organization && !data.organization.toLowerCase().includes('railway')) {
+          detectedISP = data.organization;
+        } else if (data.company?.name && !data.company.name.toLowerCase().includes('railway')) {
+          detectedISP = data.company.name;
+        } else if (data.network && !data.network.toLowerCase().includes('railway')) {
+          detectedISP = data.network;
         }
 
         if (detectedISP && detectedISP !== 'Unknown') {
-          console.log(`✅ ISP detected from service: ${detectedISP}`);
-          return detectedISP;
+          return { service, isp: detectedISP };
         }
-      } catch (ipError) {
-        console.log(`❌ IP service error:`, ipError instanceof Error ? ipError.message : String(ipError));
-        continue;
+        
+        return null;
+      } catch (error) {
+        console.log(`❌ Service ${service} failed:`, error instanceof Error ? error.message : String(error));
+        return null;
+      }
+    });
+
+    // Wait for the first successful result or all to complete
+    const results = await Promise.allSettled(servicePromises);
+    
+    // Find the first successful detection
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        console.log(`✅ ISP detected from ${result.value.service}: "${result.value.isp}"`);
+        return result.value.isp;
       }
     }
 
-    // Method 2: Use speedtest CLI with proper path detection for Railway
+    console.log('⚠️ All IP services failed or returned Railway, trying CLI detection...');
+
+    // Method 2: Enhanced Speedtest CLI detection with multiple approaches
     try {
-      console.log('🚀 Trying Speedtest CLI for ISP detection...');
+      console.log('🚀 Trying enhanced Speedtest CLI for ISP detection...');
       
-      // Try different CLI paths for Railway
-      const possibleCLIPaths = [
-        '/usr/local/bin/speedtest', // Our Dockerfile installation path
-        'speedtest',              // Standard PATH
-        '/usr/bin/speedtest',       // Alternative system path
+      // Try different CLI approaches for Railway
+      const cliApproaches = [
+        {
+          path: '/usr/local/bin/speedtest',
+          args: ['--format=json', '--accept-license', '--accept-gdpr', '--selection-details'],
+          timeout: 15000,
+        },
+        {
+          path: '/usr/local/bin/speedtest', 
+          args: ['--format=json', '--accept-license', '--accept-gdpr', '--server-id=10493'],
+          timeout: 20000,
+        },
+        {
+          path: 'speedtest',
+          args: ['--format=json', '--accept-license', '--accept-gdpr', '--selection-details'],
+          timeout: 15000,
+        },
+        {
+          path: '/usr/local/bin/speedtest',
+          args: ['--format=json', '--accept-license', '--accept-gdpr', '--no-upload'],
+          timeout: 10000,
+        }
       ];
       
-      for (const cliPath of possibleCLIPaths) {
+      for (const approach of cliApproaches) {
         try {
-          console.log(`🔍 Trying CLI path: ${cliPath}`);
+          console.log(`🔍 Trying CLI: ${approach.path} with args: ${approach.args.join(' ')}`);
           
           const { stdout } = await execAsync(
-            `${cliPath} --format=json --accept-license --accept-gdpr --selection-details`,
+            `${approach.path} ${approach.args.join(' ')}`,
             {
-              timeout: 25000, // 25 second timeout for Railway
+              timeout: approach.timeout,
             }
           );
           
           const result = JSON.parse(stdout);
-          console.log(`📊 Speedtest CLI response:`, result);
+          console.log(`📊 Speedtest CLI response:`, JSON.stringify(result, null, 2));
 
           // Extract ISP from various possible locations in the result
           let detectedISP = null;
 
-          if (result.client?.isp) {
+          // Try multiple ISP field locations
+          if (result.client?.isp && !result.client.isp.toLowerCase().includes('railway')) {
             detectedISP = result.client.isp;
-          } else if (result.interface?.externalIsp) {
+          } else if (result.interface?.externalIsp && !result.interface.externalIsp.toLowerCase().includes('railway')) {
             detectedISP = result.interface.externalIsp;
-          } else if (result.isp) {
+          } else if (result.isp && !result.isp.toLowerCase().includes('railway')) {
             detectedISP = result.isp;
-          } else if (result.server?.sponsor) {
+          } else if (result.server?.sponsor && !result.server.sponsor.toLowerCase().includes('railway')) {
             detectedISP = result.server.sponsor;
+          } else if (result.interface?.name && !result.interface.name.toLowerCase().includes('railway')) {
+            detectedISP = result.interface.name;
           }
 
-          if (detectedISP && detectedISP !== 'Unknown ISP') {
-            console.log(`✅ ISP detected from CLI: ${detectedISP}`);
+          if (detectedISP && detectedISP !== 'Unknown ISP' && detectedISP !== 'Unknown') {
+            console.log(`✅ ISP detected from CLI: "${detectedISP}"`);
             return detectedISP;
           }
         } catch (cliError) {
-          console.log(`❌ CLI path ${cliPath} failed:`, cliError instanceof Error ? cliError.message : String(cliError));
+          console.log(`❌ CLI approach failed:`, cliError instanceof Error ? cliError.message : String(cliError));
           continue;
         }
       }
     } catch (speedtestError) {
-      console.log(`❌ Speedtest CLI detection failed:`, speedtestError instanceof Error ? speedtestError.message : String(speedtestError));
+      console.log(`❌ All CLI detection methods failed:`, speedtestError instanceof Error ? speedtestError.message : String(speedtestError));
     }
 
-    // Method 3: Fallback - skip ISP detection and let user proceed
-    console.log('⚠️ All ISP detection methods failed, proceeding without pre-detection');
+    // Method 3: If we're in Railway, try to detect the client's real IP through headers
+    try {
+      console.log('🔍 Trying Railway header-based detection...');
+      
+      // In Railway environment, try to use different header-based approaches
+      const headerApproaches = [
+        'https://ipapi.co/json/?fields=org,isp,as',
+        'https://ipwhois.app/json/?objects=org,isp,connection',
+        'https://api.ipify.org?format=json',
+      ];
+      
+      for (const serviceUrl of headerApproaches) {
+        try {
+          const response = await fetch(serviceUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; SpeedTest/1.0)',
+              'Accept': 'application/json',
+              'X-Forwarded-For': '', // Let Railway pass through the real client IP
+            },
+            signal: AbortSignal.timeout(10000),
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`📡 Header-based response:`, data);
+            
+            const detectedISP = data.org || data.isp || data.as;
+            if (detectedISP && !detectedISP.toLowerCase().includes('railway') && detectedISP !== 'Unknown') {
+              console.log(`✅ ISP detected via headers: "${detectedISP}"`);
+              return detectedISP;
+            }
+          }
+        } catch (e) {
+          console.log(`❌ Header approach failed for ${serviceUrl}`);
+          continue;
+        }
+      }
+    } catch (headerError) {
+      console.log(`❌ Header-based detection failed:`, headerError instanceof Error ? headerError.message : String(headerError));
+    }
+
+    console.log('⚠️ All advanced ISP detection methods failed');
     
   } catch (error) {
     console.error('❌ ISP detection error:', error instanceof Error ? error.message : String(error));
   }
 
-  // Return a valid ISP name to indicate ISP detection was attempted - this will allow the test to proceed
-  // The actual ISP will be detected during the speed test itself from Ookla's data
-  console.log('🔄 ISP detection failed, will use Ookla detection during speed test');
+  // Return a fallback that indicates detection failed but allows test to proceed
+  console.log('🔄 Using fallback - ISP will be detected during actual speed test');
   return 'Auto-Detected ISP';
 }
