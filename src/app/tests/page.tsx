@@ -165,7 +165,9 @@ export default function Tests() {
 
     // Step 4: Try to auto-match detected ISP with available ISPs
     let autoSelectedISP = null;
-    if (detectedISPResult && validateDetectedISP(detectedISPResult.detectedISP)) {
+    if (detectedISPResult && 
+        validateDetectedISP(detectedISPResult.detectedISP) &&
+        !detectedISPResult.detectedISP.includes('Detection Failed')) {
       console.log('🔍 Looking for auto-match with detected ISP:', detectedISPResult.detectedISP);
       
       // Try to find exact match with display names first
@@ -227,8 +229,10 @@ export default function Tests() {
       // Multiple ISPs available and no auto-match, show manual selector
       console.log('🔄 Showing manual ISP selector');
       
-      // Show helpful message if ISP was detected but not matched
-      if (detectedISPResult && validateDetectedISP(detectedISPResult.detectedISP)) {
+      // Show helpful message if ISP detection failed
+      if (detectedISPResult && detectedISPResult.detectedISP.includes('Detection Failed')) {
+        console.log(`💡 ISP detection failed, but continuing with manual selection`);
+      } else if (detectedISPResult && validateDetectedISP(detectedISPResult.detectedISP)) {
         console.log(`💡 Detected ISP "${detectedISPResult.detectedISP}" but no exact match found in available ISPs`);
       }
       

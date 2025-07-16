@@ -21,21 +21,29 @@ export async function detectClientISP(): Promise<ClientISPResult> {
     // List of CORS-enabled public IP services that can detect ISP
     const corsEnabledServices = [
       {
-        url: 'https://api.ipify.org?format=json',
-        parser: (data: any) => null, // Only returns IP, not ISP
-      },
-      {
         url: 'https://ipapi.co/json/',
-        parser: (data: any) => data.org || data.isp,
+        parser: (data: any) => {
+          // ipapi.co sometimes returns the ISP info
+          if (data.org && !data.org.toLowerCase().includes('railway')) {
+            return data.org;
+          }
+          return null;
+        },
       },
       {
         url: 'https://ipwhois.app/json/',
-        parser: (data: any) => data.isp || data.org,
+        parser: (data: any) => {
+          if (data.isp && !data.isp.toLowerCase().includes('railway')) {
+            return data.isp;
+          }
+          if (data.org && !data.org.toLowerCase().includes('railway')) {
+            return data.org;
+          }
+          return null;
+        },
       },
-      {
-        url: 'https://ip-api.com/json/',
-        parser: (data: any) => data.isp || data.org || data.as,
-      }
+      // Note: ip-api.com and others might not work due to CORS restrictions in production
+      // We'll focus on services that definitely support CORS
     ];
 
     for (const service of corsEnabledServices) {
@@ -43,7 +51,7 @@ export async function detectClientISP(): Promise<ClientISPResult> {
         console.log(`🔍 [Client] Trying ISP detection service: ${service.url}`);
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 6000); // Reduced to 6 seconds
         
         const response = await fetch(service.url, {
           signal: controller.signal,
@@ -67,10 +75,7 @@ export async function detectClientISP(): Promise<ClientISPResult> {
         
         if (detectedISP && 
             detectedISP !== 'Unknown' && 
-            !detectedISP.toLowerCase().includes('railway') &&
-            !detectedISP.toLowerCase().includes('vercel') &&
-            !detectedISP.toLowerCase().includes('aws') &&
-            !detectedISP.toLowerCase().includes('google cloud')) {
+            !isHostingProvider(detectedISP)) {
           
           console.log(`✅ [Client] Successfully detected ISP: ${detectedISP}`);
           return {
@@ -92,8 +97,10 @@ export async function detectClientISP(): Promise<ClientISPResult> {
     
   } catch (error) {
     console.error('❌ [Client] ISP detection failed:', error);
+    
+    // Don't fail completely - return a result that indicates manual selection is needed
     return {
-      detectedISP: 'Unknown ISP - Please select manually',
+      detectedISP: 'Detection Failed - Auto-selection available',
       method: 'fallback',
       confidence: 'low',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -122,7 +129,7 @@ async function detectISPViaServer(): Promise<ClientISPResult> {
     const data = await response.json();
     
     if (data.detectedISP && 
-        !data.detectedISP.toLowerCase().includes('railway') &&
+        !isHostingProvider(data.detectedISP) &&
         !data.detectedISP.toLowerCase().includes('unknown')) {
       
       return {
@@ -132,8 +139,9 @@ async function detectISPViaServer(): Promise<ClientISPResult> {
       };
     }
 
+    // Server detection also failed or returned hosting provider
     return {
-      detectedISP: 'Unknown ISP - Please select manually',
+      detectedISP: 'Detection Failed - Auto-selection available',
       method: 'fallback',
       confidence: 'low'
     };
@@ -141,7 +149,7 @@ async function detectISPViaServer(): Promise<ClientISPResult> {
   } catch (error) {
     console.error('❌ [Client] Server-side detection failed:', error);
     return {
-      detectedISP: 'Unknown ISP - Please select manually',
+      detectedISP: 'Detection Failed - Auto-selection available',
       method: 'fallback',
       confidence: 'low',
       error: error instanceof Error ? error.message : 'Server detection failed'

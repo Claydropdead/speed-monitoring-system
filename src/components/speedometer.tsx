@@ -89,31 +89,45 @@ export default function Speedometer({
         progress: 5,
       });
 
-      const response = await fetch('/api/speedtest/detect-isp');
-      const data = await response.json();
+      // Try to detect ISP, but don't fail the entire test if detection fails
+      let detectedISP = 'Unknown';
+      let detectionSuccessful = false;
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to detect ISP');
+      try {
+        const response = await fetch('/api/speedtest/detect-isp');
+        const data = await response.json();
+
+        if (response.ok && data.detectedISP) {
+          detectedISP = data.detectedISP;
+          
+          // Consider detection successful if we get something other than the fallback message
+          if (detectedISP !== 'Unknown ISP - Please select manually' && 
+              detectedISP !== 'Unknown' &&
+              !detectedISP.toLowerCase().includes('railway') &&
+              !detectedISP.toLowerCase().includes('unknown')) {
+            detectionSuccessful = true;
+            console.log('✅ ISP detection successful:', detectedISP);
+          } else {
+            console.log('⚠️ ISP detection returned fallback value:', detectedISP);
+          }
+        } else {
+          console.log('⚠️ ISP detection API failed:', data.error || 'Unknown error');
+        }
+      } catch (detectionError) {
+        console.log('⚠️ ISP detection request failed:', detectionError);
+        // Don't throw - continue with the test
       }
 
-      const detectedISP = data.detectedISP;
+      // If we have a selected ISP and detection was successful, validate the match
+      if (selectedISP && detectionSuccessful && detectedISP !== 'Unknown') {
+        console.log('🔍 Validating ISP match:', { selected: selectedISP, detected: detectedISP });
+        
+        // Use strict ISP validation - ISP must match before proceeding
+        const validation = validateISPMatch(selectedISP!, detectedISP, false); // relaxed mode = false (strict)
 
-      if (detectedISP === 'Unknown ISP - Please select manually') {
-        const errorMessage =
-          'Unable to detect your ISP. Please verify your connection or try again.';
-        setIspValidationError(errorMessage);
-        setIsValidatingISP(false);
-        handleErrorRef.current?.(errorMessage, {
-          type: 'detection_failed',
-          suggestion: 'Check your internet connection and try again',
-        });
-        return;
-      } // Use strict ISP validation - ISP must match before proceeding
-      const validation = validateISPMatch(selectedISP!, detectedISP, false); // relaxed mode = false (strict)
-
-      // Only proceed if ISP matches exactly or partially
-      if (!validation.isMatch) {
-        const errorMessage = `ISP Mismatch Detected!
+        // Only proceed if ISP matches exactly or partially
+        if (!validation.isMatch) {
+          const errorMessage = `ISP Mismatch Detected!
 
 Selected: ${selectedISP}
 Detected: ${detectedISP}
@@ -121,19 +135,27 @@ Detected: ${detectedISP}
 The speed test was stopped to prevent incorrect data collection.
 
 Please select the correct ISP that matches your actual connection.`;
-        setIspValidationError(errorMessage);
-        setIsValidatingISP(false);
-        setIsTestCompleted(true); // Mark test as completed to prevent re-triggering
-        handleErrorRef.current?.(errorMessage, {
-          type: 'isp_mismatch',
-          selectedISP,
-          detectedISP,
-          suggestedAction: 'Please select the correct ISP and try again',
-        });
-        return;
+          setIspValidationError(errorMessage);
+          setIsValidatingISP(false);
+          setIsTestCompleted(true); // Mark test as completed to prevent re-triggering
+          handleErrorRef.current?.(errorMessage, {
+            type: 'isp_mismatch',
+            selectedISP,
+            detectedISP,
+            suggestedAction: 'Please select the correct ISP and try again',
+          });
+          return;
+        }
+        
+        console.log('✅ ISP validation passed:', validation);
+      } else {
+        // Skip validation if detection failed or no ISP selected
+        // This allows the speed test to proceed even if ISP detection fails
+        console.log('ℹ️ Skipping ISP validation - detection failed or no ISP selected');
+        console.log('ℹ️ Detection successful:', detectionSuccessful, 'Selected ISP:', selectedISP, 'Detected ISP:', detectedISP);
       }
 
-      // Validation passed, start the test
+      // Validation passed or skipped, start the test
       setIsValidatingISP(false);
       startSpeedTest();
     } catch (error) {
