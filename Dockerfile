@@ -31,11 +31,15 @@ RUN speedtest --accept-license --accept-gdpr --version || true
 # Copy application code
 COPY . .
 
+# Make startup script executable
+RUN chmod +x start.sh
+
 # Generate Prisma client
 RUN npx prisma generate
 
-# Build the application
-RUN npm run build
+# Build the application (skip DB operations during build)
+ENV DATABASE_URL="postgresql://placeholder:placeholder@placeholder:5432/placeholder"
+RUN npm run build:docker
 
 # Expose port
 EXPOSE 3000
@@ -44,4 +48,4 @@ EXPOSE 3000
 ENV NODE_ENV=production
 
 # Start the application
-CMD ["npm", "start"]
+CMD ["./start.sh"]
