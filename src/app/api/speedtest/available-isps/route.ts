@@ -36,17 +36,32 @@ export async function GET(request: NextRequest) {
     // Use server timezone (Manila) primarily, since server is now configured for Philippines time
     let currentTimeSlot: TimeSlot | null = null;
     
-    // Server timezone is now Manila, so use it first
-    currentTimeSlot = getCurrentTimeSlot();
-    console.log(`⏰ Using server timezone (${getAppTimezone()}) for validation: ${currentTimeSlot}`);
+    console.log(`🔧 [DEBUG] Starting time slot detection...`);
+    console.log(`🔧 [DEBUG] App timezone: ${getAppTimezone()}`);
+    console.log(`🔧 [DEBUG] Client timezone: ${clientTimezone}`);
+    
+    try {
+      // Server timezone is now Manila, so use it first
+      currentTimeSlot = getCurrentTimeSlot();
+      console.log(`⏰ Using server timezone (${getAppTimezone()}) for validation: ${currentTimeSlot}`);
+    } catch (error) {
+      console.error(`❌ [DEBUG] Server timezone failed:`, error);
+    }
     
     // Only use client timezone if server timezone fails (shouldn't happen now)
     if (!currentTimeSlot && clientTimezone && clientTimezone !== 'UTC') {
-      currentTimeSlot = getCurrentTimeSlotForTimezone(clientTimezone);
-      console.log(`⏰ Fallback to client timezone (${clientTimezone}) for validation: ${currentTimeSlot}`);
+      try {
+        currentTimeSlot = getCurrentTimeSlotForTimezone(clientTimezone);
+        console.log(`⏰ Fallback to client timezone (${clientTimezone}) for validation: ${currentTimeSlot}`);
+      } catch (error) {
+        console.error(`❌ [DEBUG] Client timezone failed:`, error);
+      }
     }
+    
+    console.log(`🔧 [DEBUG] Final currentTimeSlot: ${currentTimeSlot}`);
 
     if (!currentTimeSlot) {
+      console.log(`❌ [DEBUG] No valid time slot found, returning error response`);
       return NextResponse.json({
         available: [],
         tested: [],
