@@ -164,7 +164,11 @@ Please select the correct ISP that matches your actual connection.`;
     
     if (selectedSection) {
       queryParams.set('selectedSection', selectedSection);
-    }    // Pass the validated ISP from pre-validation to maintain consistency
+    }
+
+    // Add client timezone for proper time slot validation
+    const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    queryParams.set('timezone', clientTimezone);    // Pass the validated ISP from pre-validation to maintain consistency
     const speedTestUrl = `/api/speedtest/live?${queryParams.toString()}`;
     const eventSource = new EventSource(speedTestUrl);
     setEventSourceRef(eventSource);

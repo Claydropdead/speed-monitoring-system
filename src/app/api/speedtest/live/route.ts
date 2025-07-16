@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { spawn } from 'child_process';
 import { validateISPMatch, detectCurrentISP } from '@/lib/speedtest';
 import { normalizeISPName, resolveISPFromId } from '@/lib/isp-utils';
+import { getCurrentTimeSlotForTimezone, getCurrentTimeSlot } from '@/lib/timezone';
 
 // Track active speedtest requests
 const activeRequests = new Set<string>();
@@ -36,10 +37,11 @@ export async function GET(request: NextRequest) {
   const selectedISP = searchParams.get('selectedISP');
   const selectedSection = searchParams.get('selectedSection');
   const useValidatedISP = searchParams.get('useValidatedISP') === 'true';
+  const timezone = searchParams.get('timezone') || 'UTC';
 
   console.log(`🔗 [${requestId}] Full request URL: ${request.url}`);
   console.log(
-    `📋 [${requestId}] Parsed params - Office ID: ${officeId}, Selected ISP: ${selectedISP}, Selected Section: ${selectedSection}, Use Validated ISP: ${useValidatedISP}`
+    `📋 [${requestId}] Parsed params - Office ID: ${officeId}, Selected ISP: ${selectedISP}, Selected Section: ${selectedSection}, Use Validated ISP: ${useValidatedISP}, Timezone: ${timezone}`
   );
 
   // Check permissions
@@ -47,8 +49,26 @@ export async function GET(request: NextRequest) {
     console.log(
       `🚫 [${requestId}] Forbidden - user office ${session.user?.officeId} doesn't match requested ${officeId}`
     );
+    cleanup();
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+
+  // Check if current time allows testing (use client timezone if provided)
+  const currentTimeSlot = timezone !== 'UTC' 
+    ? getCurrentTimeSlotForTimezone(timezone) 
+    : getCurrentTimeSlot();
+
+  if (!currentTimeSlot) {
+    console.log(`⏰ [${requestId}] Speed test blocked - outside testing hours (timezone: ${timezone})`);
+    cleanup();
+    return NextResponse.json({ 
+      error: 'Testing is only allowed during designated time slots (6AM-11:59AM, 12PM-12:59PM, 1PM-6PM)',
+      currentTime: new Date().toISOString(),
+      timezone: timezone
+    }, { status: 400 });
+  }
+
+  console.log(`✅ [${requestId}] Time slot validation passed - current slot: ${currentTimeSlot} (timezone: ${timezone})`);
   // Set up SSE headers
   const headers = new Headers({
     'Content-Type': 'text/event-stream',

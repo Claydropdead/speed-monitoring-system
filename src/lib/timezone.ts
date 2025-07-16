@@ -66,6 +66,32 @@ export function getCurrentTimeSlot(): TimeSlot | null {
 }
 
 /**
+ * Get time slot for a specific timezone
+ */
+export function getCurrentTimeSlotForTimezone(timezone: string): TimeSlot | null {
+  try {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      hour12: false
+    });
+    
+    const timeString = formatter.format(now);
+    const hour = parseInt(timeString);
+    
+    if (hour >= 6 && hour <= 11) return TimeSlot.MORNING; // 6:00 AM - 11:59 AM
+    if (hour === 12) return TimeSlot.NOON; // 12:00 PM - 12:59 PM
+    if (hour >= 13 && hour <= 18) return TimeSlot.AFTERNOON; // 1:00 PM - 6:00 PM
+    return null;
+  } catch (error) {
+    console.warn(`Failed to get time slot for timezone ${timezone}:`, error);
+    // Fallback to app timezone
+    return getCurrentTimeSlot();
+  }
+}
+
+/**
  * Check if a timestamp falls within today's time slot (in app timezone)
  */
 export function isTestFromTodayTimeSlot(timestamp: Date, timeSlot: TimeSlot): boolean {

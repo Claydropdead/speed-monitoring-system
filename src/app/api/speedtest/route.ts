@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { runSpeedTest, validateSpeedTestData } from '@/lib/speedtest';
 import { normalizeISPName, resolveISPFromId } from '@/lib/isp-utils';
+import { getCurrentTimeSlotForTimezone, getCurrentTimeSlot } from '@/lib/timezone';
 
 export async function GET(request: NextRequest) {
   try {
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { officeId, runTest, selectedISP } = body;
+    const { officeId, runTest, selectedISP, timezone } = body;
 
     // Determine the correct office ID to use
     let targetOfficeId: string;
@@ -97,6 +98,19 @@ export async function POST(request: NextRequest) {
     } else {
       // Regular users use their own office
       targetOfficeId = session.user?.officeId!;
+    }
+
+    // Check if current time allows testing (use client timezone if provided)
+    const currentTimeSlot = timezone && timezone !== 'UTC' 
+      ? getCurrentTimeSlotForTimezone(timezone) 
+      : getCurrentTimeSlot();
+
+    if (!currentTimeSlot) {
+      return NextResponse.json({ 
+        error: 'Testing is only allowed during designated time slots (6AM-11:59AM, 12PM-12:59PM, 1PM-6PM)',
+        currentTime: new Date().toISOString(),
+        timezone: timezone || 'UTC'
+      }, { status: 400 });
     }
 
     // Check permissions

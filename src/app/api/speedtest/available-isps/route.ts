@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { TimeSlot } from '@prisma/client';
 import { normalizeISPName, parseISPsFromOffice, getISPDisplayName } from '@/lib/isp-utils';
-import { getCurrentTimeSlot, isTestFromTodayTimeSlot, getTimeSlotInfo } from '@/lib/timezone';
+import { getCurrentTimeSlot, getCurrentTimeSlotForTimezone, isTestFromTodayTimeSlot, getTimeSlotInfo } from '@/lib/timezone';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     // For regular users, use their assigned office
     const { searchParams } = new URL(request.url);
     const requestedOfficeId = searchParams.get('officeId');
+    const clientTimezone = searchParams.get('timezone') || 'UTC';
     
     let targetOfficeId: string;
     if (isAdmin && requestedOfficeId) {
@@ -32,7 +33,10 @@ export async function GET(request: NextRequest) {
       targetOfficeId = session.user.officeId!;
     }
 
-    const currentTimeSlot = getCurrentTimeSlot();
+    // Use client timezone for time slot detection if provided, otherwise use server timezone
+    const currentTimeSlot = clientTimezone !== 'UTC' 
+      ? getCurrentTimeSlotForTimezone(clientTimezone) 
+      : getCurrentTimeSlot();
 
     if (!currentTimeSlot) {
       return NextResponse.json({

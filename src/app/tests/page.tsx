@@ -77,7 +77,9 @@ export default function Tests() {
 
     setLoadingISPs(true);
     try {
-      const response = await fetch('/api/speedtest/available-isps');
+      // Get client timezone
+      const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const response = await fetch(`/api/speedtest/available-isps?timezone=${encodeURIComponent(clientTimezone)}`);
       if (response.ok) {
         const data = await response.json();
         setAvailableISPs(data);
