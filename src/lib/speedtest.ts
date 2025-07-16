@@ -424,10 +424,9 @@ export async function detectCurrentISP(): Promise<string> {
 
     // Method 1: Try to get ISP info from Railway-friendly public IP services
     const allowedServices = [
+      'https://httpbin.org/ip', // This should work in most environments
       'https://ipapi.co/json/',
-      'https://ipwhois.app/json/',
-      'https://api.ipgeolocation.io/ipgeo?apiKey=',
-      'https://httpbin.org/ip', // Fallback for basic IP
+      'https://api.ipify.org?format=json',
     ];
 
     for (const service of allowedServices) {
@@ -455,6 +454,35 @@ export async function detectCurrentISP(): Promise<string> {
         
         const ipData = await response.json();
         console.log(`📡 IP service response:`, ipData);
+
+        // Special handling for httpbin.org/ip (just returns IP)
+        if (service.includes('httpbin.org') && ipData.origin) {
+          console.log(`🌐 Got IP from httpbin: ${ipData.origin}`);
+          // Try to get ISP info using this IP
+          try {
+            const ispResponse = await fetch(`https://ipapi.co/${ipData.origin}/json/`, {
+              signal: AbortSignal.timeout(5000),
+              headers: {
+                'User-Agent': 'SpeedMonitoringSystem/1.0',
+                'Accept': 'application/json',
+              },
+            });
+            
+            if (ispResponse.ok) {
+              const ispData = await ispResponse.json();
+              console.log(`📡 ISP data for ${ipData.origin}:`, ispData);
+              
+              let detectedISP = ispData.org || ispData.isp || ispData.as;
+              if (detectedISP && detectedISP !== 'Unknown') {
+                console.log(`✅ ISP detected via IP lookup: ${detectedISP}`);
+                return detectedISP;
+              }
+            }
+          } catch (ispError) {
+            console.log(`⚠️ ISP lookup failed for ${ipData.origin}`);
+          }
+          continue;
+        }
 
         // Try multiple ISP field names
         let detectedISP = null;
@@ -536,8 +564,8 @@ export async function detectCurrentISP(): Promise<string> {
     console.error('❌ ISP detection error:', error instanceof Error ? error.message : String(error));
   }
 
-  // Return null to indicate ISP detection failed - this will allow the test to proceed
-  // The CLI will detect the ISP during the actual speed test
-  console.log('🔄 ISP detection failed, will use CLI detection during speed test');
-  return 'CLI-Detected'; // Special marker to indicate CLI should detect ISP
+  // Return a valid ISP name to indicate ISP detection was attempted - this will allow the test to proceed
+  // The actual ISP will be detected during the speed test itself from Ookla's data
+  console.log('🔄 ISP detection failed, will use Ookla detection during speed test');
+  return 'Auto-Detected ISP';
 }
