@@ -3,9 +3,7 @@
 import { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X } from 'lucide-react';
-import SimpleSpeedTest from './simple-speed-test';
-import AutomatedSpeedTest from './automated-speed-test';
-import Speedometer from './speedometer';
+import ClientSpeedTest from './client-speed-test';
 
 interface SpeedTestResult {
   download: number;
@@ -271,21 +269,20 @@ export default function SpeedTestModal({
                   </div>
                 ) : (
                   <div>
-                    <Speedometer
-                      isRunning={isTestRunning}
+                    <ClientSpeedTest
                       officeId={officeId}
                       selectedISP={selectedISP}
                       selectedSection={selectedSection}
                       onComplete={(result) => {
-                        // Convert server-side result to our format
+                        // Convert client-side result to our format
                         const speedTestResult: SpeedTestResult = {
                           download: result.download,
                           upload: result.upload,
                           ping: result.ping,
                           jitter: result.jitter || 0,
                           packetLoss: result.packetLoss || 0,
-                          serverId: result.serverId || 'server-side',
-                          serverName: result.serverName || 'Server-Side Test',
+                          serverId: result.serverId || 'client-side',
+                          serverName: result.serverName || 'Client-Side Test',
                           isp: result.ispName,
                           clientIP: result.clientIp,
                           serverLocation: result.serverLocation,
@@ -295,12 +292,6 @@ export default function SpeedTestModal({
                       }}
                       onError={(error, errorData) => {
                         handleError(error, errorData);
-                      }}
-                      onTestStart={() => {
-                        setIsTestRunning(true);
-                        setShowResults(false);
-                        setError(null);
-                        setHasCompletedTest(false);
                       }}
                     />
                   </div>
