@@ -8,6 +8,7 @@ import { useEffect, useState, useRef } from 'react';
 import { format } from 'date-fns';
 import { Zap, Download, Upload, Clock, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { normalizeISPName } from '@/lib/isp-utils';
+import { detectClientISP, validateDetectedISP, ClientISPResult } from '@/lib/client-isp-detection';
 
 interface SpeedTest {
   id: string;
@@ -129,10 +130,22 @@ export default function Tests() {
   const runSpeedTest = async () => {
     if (!session?.user?.officeId) return;
 
-    // Fetch available ISPs with local time validation
+    console.log('🚀 Starting speed test process with client-side ISP detection');
+
+    // Step 1: Detect client ISP first
+    let detectedISPResult: ClientISPResult | null = null;
+    try {
+      console.log('🌐 Detecting client ISP...');
+      detectedISPResult = await detectClientISP();
+      console.log('🔍 ISP Detection Result:', detectedISPResult);
+    } catch (error) {
+      console.error('❌ Client ISP detection failed:', error);
+    }
+
+    // Step 2: Fetch available ISPs with local time validation
     await fetchAvailableISPs();
 
-    // Check if testing is allowed based on local time
+    // Step 3: Check if testing is allowed based on local time
     if (!availableISPs || !availableISPs.currentTimeSlot) {
       alert(
         'Testing is only allowed during designated time slots (6AM-11:59AM, 12PM-12:59PM, 1PM-6PM) based on your local time.\n\nPlease try again during a valid time slot.'
@@ -149,15 +162,76 @@ export default function Tests() {
       );
       return;
     }
-    
-    if (availableISPs.available.length === 1) {
+
+    // Step 4: Try to auto-match detected ISP with available ISPs
+    let autoSelectedISP = null;
+    if (detectedISPResult && validateDetectedISP(detectedISPResult.detectedISP)) {
+      console.log('🔍 Looking for auto-match with detected ISP:', detectedISPResult.detectedISP);
+      
+      // Try to find exact match with display names first
+      autoSelectedISP = availableISPs.available.find(item => {
+        const displayMatch = item.displayName.toLowerCase() === detectedISPResult!.detectedISP.toLowerCase();
+        const ispMatch = item.isp.toLowerCase() === detectedISPResult!.detectedISP.toLowerCase();
+        const normalizedMatch = normalizeISPName(item.isp) === normalizeISPName(detectedISPResult!.detectedISP);
+        
+        if (displayMatch || ispMatch || normalizedMatch) {
+          console.log('✅ Found ISP match:', { 
+            available: item, 
+            detected: detectedISPResult!.detectedISP,
+            matchType: displayMatch ? 'display' : ispMatch ? 'name' : 'normalized'
+          });
+          return true;
+        }
+        return false;
+      });
+
+      // If no exact match, try partial matching for common ISP names
+      if (!autoSelectedISP) {
+        const detectedLower = detectedISPResult.detectedISP.toLowerCase();
+        autoSelectedISP = availableISPs.available.find(item => {
+          const itemLower = item.isp.toLowerCase();
+          return (
+            detectedLower.includes(itemLower) || 
+            itemLower.includes(detectedLower) ||
+            (detectedLower.includes('pldt') && itemLower.includes('pldt')) ||
+            (detectedLower.includes('globe') && itemLower.includes('globe')) ||
+            (detectedLower.includes('smart') && itemLower.includes('smart')) ||
+            (detectedLower.includes('converge') && itemLower.includes('converge'))
+          );
+        });
+        
+        if (autoSelectedISP) {
+          console.log('✅ Found partial ISP match:', { 
+            available: autoSelectedISP, 
+            detected: detectedISPResult.detectedISP 
+          });
+        }
+      }
+    }
+
+    // Step 5: Proceed based on available options and auto-detection
+    if (autoSelectedISP) {
+      // Auto-detected ISP matches an available option
+      console.log('🎯 Auto-selecting ISP:', autoSelectedISP);
+      setSelectedISP(autoSelectedISP.id);
+      setSelectedSection(autoSelectedISP.section);
+      setShowSpeedometer(true);
+    } else if (availableISPs.available.length === 1) {
       // Only one ISP available, select it automatically
       const selectedItem = availableISPs.available[0];
+      console.log('📍 Auto-selecting single available ISP:', selectedItem);
       setSelectedISP(selectedItem.id);
       setSelectedSection(selectedItem.section);
       setShowSpeedometer(true);
     } else {
-      // Multiple ISPs available, show selector
+      // Multiple ISPs available and no auto-match, show manual selector
+      console.log('🔄 Showing manual ISP selector');
+      
+      // Show helpful message if ISP was detected but not matched
+      if (detectedISPResult && validateDetectedISP(detectedISPResult.detectedISP)) {
+        console.log(`💡 Detected ISP "${detectedISPResult.detectedISP}" but no exact match found in available ISPs`);
+      }
+      
       setShowISPSelector(true);
     }
   };
