@@ -53,7 +53,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   const startLogoutWarning = () => {
-    console.log('⚠️ Auto-logout warning triggered - 1 minute remaining');
     setShowLogoutWarning(true);
     setTimeRemaining(60); // 1 minute remaining
 
@@ -61,10 +60,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     countdownIntervalRef.current = setInterval(() => {
       setTimeRemaining((prev) => {
         const newTime = prev - 1;
-        console.log(`⏰ Countdown: ${newTime} seconds remaining`);
         
         if (newTime <= 0) {
-          console.log('🚪 Auto-logout triggered!');
           clearAllTimers();
           signOut({ callbackUrl: '/' });
           return 0;
@@ -75,8 +72,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   const resetActivityTimer = () => {
-    console.log('🔄 Auto-logout timer reset - 15 minute session started');
-    
     // Clear all existing timers
     clearAllTimers();
     
@@ -90,7 +85,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   const extendSession = () => {
-    console.log('🔄 Session extended by user');
     resetActivityTimer();
   };
 
@@ -162,7 +156,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       
       const handleActivity = () => {
         if (!showLogoutWarning) {
-          console.log('👆 User activity detected - resetting timer');
           resetActivityTimer();
         }
       };

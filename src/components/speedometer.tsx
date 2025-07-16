@@ -81,7 +81,6 @@ export default function Speedometer({
     setIspValidationError(null);
 
     try {
-      console.log('Speedometer: Pre-validating ISP before starting speed test');
       setProgress({
         stage: 'connecting',
         download: 0,
@@ -98,9 +97,6 @@ export default function Speedometer({
       }
 
       const detectedISP = data.detectedISP;
-      console.log(
-        `🌐 Speedometer: Quick ISP detection - Detected: "${detectedISP}", Selected: "${selectedISP}"`
-      );
 
       if (detectedISP === 'Unknown ISP - Please select manually') {
         const errorMessage =
@@ -114,8 +110,6 @@ export default function Speedometer({
         return;
       } // Use strict ISP validation - ISP must match before proceeding
       const validation = validateISPMatch(selectedISP!, detectedISP, false); // relaxed mode = false (strict)
-
-      console.log(`ISP Validation Result:`, validation);
 
       // Only proceed if ISP matches exactly or partially
       if (!validation.isMatch) {
@@ -139,16 +133,10 @@ Please select the correct ISP that matches your actual connection.`;
         return;
       }
 
-      // Log validation result for successful matches
-      const matchType = validation.confidence === 100 ? 'exact' : 'partial';
-      console.log(
-        `✅ Speedometer: ISP validation passed (${matchType} match, confidence: ${validation.confidence}%), starting speed test`
-      );
-
+      // Validation passed, start the test
       setIsValidatingISP(false);
       startSpeedTest();
     } catch (error) {
-      console.error('❌ Speedometer: ISP pre-validation failed:', error);
       setIsValidatingISP(false);
       setIsTestCompleted(true); // Mark test as completed to prevent re-triggering
       const errorMessage = 'Failed to validate ISP before starting test. Please try again.';
@@ -156,14 +144,13 @@ Please select the correct ISP that matches your actual connection.`;
       handleErrorRef.current?.(errorMessage, { type: 'validation_error' });
     }
   };  const startSpeedTest = () => {
-    console.log('🚀 Speedometer: Starting real-time speedtest');
-
     // Prevent multiple EventSource connections
     if (eventSourceRef) {
-      console.log('⚠️ Speedometer: EventSource already exists, closing previous connection');
       eventSourceRef.close();
       setEventSourceRef(null);
-    }    onTestStartRef.current?.();
+    }
+    
+    onTestStartRef.current?.();
 
     // Build query parameters more safely
     const queryParams = new URLSearchParams({
@@ -179,23 +166,18 @@ Please select the correct ISP that matches your actual connection.`;
       queryParams.set('selectedSection', selectedSection);
     }    // Pass the validated ISP from pre-validation to maintain consistency
     const speedTestUrl = `/api/speedtest/live?${queryParams.toString()}`;
-    console.log(`🔗 Speedometer: Connecting to speed test URL: ${speedTestUrl}`);
     const eventSource = new EventSource(speedTestUrl);
     setEventSourceRef(eventSource);
     eventSource.onmessage = event => {
       try {
         // Validate event data before parsing
         if (!event.data || event.data.trim() === '') {
-          console.log('📊 Speedometer: Received empty event data, skipping');
           return;
         }
 
         const data = JSON.parse(event.data);
-        console.log('📊 Speedometer: Received data:', data);
-
         // Validate required properties
         if (!data.type) {
-          console.warn('📊 Speedometer: Received data without type property, skipping');
           return;
         }
         if (data.type === 'progress') {
@@ -248,7 +230,6 @@ Please select the correct ISP that matches your actual connection.`;
             progress: normalizedProgress,
           });
         } else if (data.type === 'result') {
-          console.log('✅ Speedometer: Final result received:', data);
           setIsTestCompleted(true);
 
           const result: SpeedTestResult = {
@@ -279,31 +260,24 @@ Please select the correct ISP that matches your actual connection.`;
           setEventSourceRef(null);
           handleCompleteRef.current?.(result);
         } else if (data.type === 'error') {
-          console.log('❌ Speedometer: Error received:', data.error);
           setIsTestCompleted(true);
           eventSource.close();
           setEventSourceRef(null);
           handleErrorRef.current?.(data.error, data);
-        } else {
-          console.warn('📊 Speedometer: Unknown data type received:', data.type);
         }
       } catch (error) {
-        console.error('❌ Speedometer: Error parsing event data:', error, 'Raw data:', event.data);
-        // Don't close the connection for single parse errors, just log and continue
+        // Don't close the connection for single parse errors, just continue
       }
     };
 
     eventSource.onerror = error => {
-      console.error('❌ Speedometer: EventSource failed:', error);
       // Only close if the connection is in a failed state
       if (eventSource.readyState === EventSource.CLOSED) {
         setIsTestCompleted(true);
         setEventSourceRef(null);
         handleErrorRef.current?.('Connection to speed test failed - test was interrupted');
-      } else if (eventSource.readyState === EventSource.CONNECTING) {
-        console.log('🔄 Speedometer: EventSource reconnecting...');
-        // Let it try to reconnect automatically
       }
+      // Let it try to reconnect automatically for other states
     };
   };
   useEffect(() => {
@@ -340,7 +314,6 @@ Please select the correct ISP that matches your actual connection.`;
   useEffect(() => {
     return () => {
       if (eventSourceRef) {
-        console.log('🧹 Speedometer: Cleaning up EventSource on unmount');
         eventSourceRef.close();
         setEventSourceRef(null);
       }
@@ -350,7 +323,6 @@ Please select the correct ISP that matches your actual connection.`;
   // Close EventSource when isRunning becomes false
   useEffect(() => {
     if (!isRunning && eventSourceRef) {
-      console.log('🧹 Speedometer: Closing EventSource because isRunning is false');
       eventSourceRef.close();
       setEventSourceRef(null);
     }

@@ -126,25 +126,15 @@ export async function POST(request: NextRequest) {
       let actualISPName = selectedISP;
       let ispDisplayName = selectedISP;
       
-      console.log(`🔍 Processing speed test for office: ${targetOfficeId}, selectedISP: ${selectedISP}`);
-      console.log(`🔍 Office data:`, { 
-        isp: office.isp, 
-        isps: office.isps, 
-        sectionISPs: office.sectionISPs 
-      });
-      
       if (selectedISP) {
         const resolvedISP = resolveISPFromId(selectedISP, office);
-        console.log(`🔍 resolveISPFromId result:`, resolvedISP);
         if (resolvedISP) {
           actualISPName = resolvedISP.name;
           ispDisplayName = resolvedISP.displayName;
-          console.log(`🔍 Resolved ISP ID "${selectedISP}" to "${actualISPName}" (display: "${ispDisplayName}")`);
         } else {
           // Fallback: treat selectedISP as direct name
           actualISPName = selectedISP;
           ispDisplayName = selectedISP;
-          console.log(`⚠️ Could not resolve ISP ID "${selectedISP}", using as direct name`);
         }
       }
 
@@ -170,12 +160,10 @@ export async function POST(request: NextRequest) {
       if (actualISPName) {
         // Use the display name which includes descriptions for unique identification
         ispToSave = ispDisplayName;
-        console.log(`🏷️ Using resolved ISP: "${ispToSave}"`);
       } else {
         // No specific ISP selected - use detected ISP from speedtest or office default
         const detectedISP = (testData as any).ispName || office.isp;
         ispToSave = normalizeISPName(detectedISP);
-        console.log(`🏷️ Using detected/default ISP: "${detectedISP}" -> normalized: "${ispToSave}"`);
       }
 
       // Save to database

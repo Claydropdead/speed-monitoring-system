@@ -174,8 +174,6 @@ export function generateISPId(ispName: string, existingIds: string[] = []): stri
 export function parseISPsFromOffice(office: any): ISPProvider[] {
   const isps: ISPProvider[] = [];
   
-  console.log(`🔧 parseISPsFromOffice: Processing office with isp="${office.isp}", isps="${office.isps}"`);
-  
   // Handle legacy single ISP format
   if (office.isp && !office.isps) {
     isps.push({
@@ -190,7 +188,6 @@ export function parseISPsFromOffice(office: any): ISPProvider[] {
   if (office.isps) {
     try {
       const ispArray = typeof office.isps === 'string' ? JSON.parse(office.isps) : office.isps;
-      console.log(`🔧 parseISPsFromOffice: Parsed ISP array:`, ispArray);
       
       if (Array.isArray(ispArray)) {
         const existingIds: string[] = [];
@@ -224,13 +221,11 @@ export function parseISPsFromOffice(office: any): ISPProvider[] {
               description
             };
             
-            console.log(`🔧 parseISPsFromOffice: Created ISP provider:`, ispProvider);
             isps.push(ispProvider);
           }
         });
       }
     } catch (error) {
-      console.warn('Failed to parse ISPs from office:', error);
       // Fallback to legacy format
       if (office.isp) {
         isps.push({
@@ -246,7 +241,6 @@ export function parseISPsFromOffice(office: any): ISPProvider[] {
   if (office.sectionISPs) {
     try {
       const sectionISPs = typeof office.sectionISPs === 'string' ? JSON.parse(office.sectionISPs) : office.sectionISPs;
-      console.log(`🔧 parseISPsFromOffice: Processing section ISPs:`, sectionISPs);
       
       Object.entries(sectionISPs).forEach(([section, sectionIspArray]) => {
         if (Array.isArray(sectionIspArray)) {
@@ -282,14 +276,13 @@ export function parseISPsFromOffice(office: any): ISPProvider[] {
                 section
               };
               
-              console.log(`🔧 parseISPsFromOffice: Created section ISP provider:`, ispProvider);
               isps.push(ispProvider);
             }
           });
         }
       });
     } catch (error) {
-      console.warn('Failed to parse section ISPs from office:', error);
+      // Silent fallback on parse error
     }
   }
   
@@ -304,38 +297,29 @@ export function findISPById(office: any, ispId: string): ISPProvider | null {
 
 // Get display name for ISP (includes section if applicable)
 export function getISPDisplayName(isp: ISPProvider): string {
-  console.log(`🔧 getISPDisplayName: Processing ISP:`, isp);
-  
   // Check if description is already included in the name to avoid duplication
   if (isp.name.includes('(') && isp.name.includes(')')) {
-    console.log(`🔧 getISPDisplayName: Name already has parentheses, returning: ${isp.name}`);
     return isp.name;
   }
   
   // Handle section-specific ISPs with proper descriptions
   if (isp.section && isp.description && !isp.description.startsWith(isp.section)) {
     const result = `${isp.name} (${isp.description})`;
-    console.log(`🔧 getISPDisplayName: Using section ISP with description, returning: ${result}`);
     return result;
   }
   
   // Handle regular ISPs with descriptions
   if (isp.description && isp.description !== 'Primary ISP' && !isp.description.startsWith('ISP ') && !isp.description.includes(' - ISP ')) {
     const result = `${isp.name} (${isp.description})`;
-    console.log(`🔧 getISPDisplayName: Using description, returning: ${result}`);
     return result;
   }
   
-  console.log(`🔧 getISPDisplayName: Fallback to name only: ${isp.name}`);
   return isp.name;
 }
 
 // Resolve ISP ID back to ISP name for speed test execution
 export function resolveISPFromId(ispId: string, office: any): { name: string; displayName: string } | null {
-  console.log(`🔧 Resolving ISP ID: "${ispId}" for office with isps:`, office.isps);
-  
   const isps = parseISPsFromOffice(office);
-  console.log(`🔧 Parsed ISPs:`, isps);
   
   const foundISP = isps.find(isp => isp.id === ispId);
   
@@ -344,19 +328,16 @@ export function resolveISPFromId(ispId: string, office: any): { name: string; di
       name: foundISP.name,
       displayName: getISPDisplayName(foundISP)
     };
-    console.log(`🔧 Found ISP by ID: ${ispId} ->`, result);
     return result;
   }
   
   // Fallback: if ID looks like it might be a direct ISP name, return it
   if (ispId && typeof ispId === 'string') {
-    console.log(`🔧 Using ISP ID as direct name: ${ispId}`);
     return {
       name: ispId,
       displayName: ispId
     };
   }
   
-  console.log(`🔧 Could not resolve ISP ID: ${ispId}`);
   return null;
 }

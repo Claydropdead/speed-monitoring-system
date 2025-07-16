@@ -53,7 +53,6 @@ export default function SpeedTestModal({
   // Auto-start test when modal opens and states are reset
   useEffect(() => {
     if (isOpen && !isTestRunning && !hasCompletedTest && !error) {
-      console.log('🚀 SpeedTestModal: Auto-starting test on modal open');
       // Use a small delay to ensure state is settled
       const startTimeout = setTimeout(() => {
         setIsTestRunning(true);
@@ -64,7 +63,6 @@ export default function SpeedTestModal({
   }, [isOpen]); // Remove other dependencies to prevent re-triggering
 
   const handleComplete = (result: SpeedTestResult) => {
-    console.log('🎬 SpeedTestModal: Test completed, showing results');
     setIsTestRunning(false); // Set to false when test completes
     setHasCompletedTest(true);
     setShowResults(true);
@@ -75,7 +73,6 @@ export default function SpeedTestModal({
     // User can manually close by clicking the X button or clicking outside
   };
   const handleError = (errorMessage: string, errorData?: any) => {
-    console.log('🚨 SpeedTestModal: Received error:', errorMessage, errorData);
     setIsTestRunning(false);
     setError(errorMessage);
 
@@ -105,7 +102,6 @@ export default function SpeedTestModal({
   const handleClose = () => {
     // Prevent closing during active test (but allow closing after completion)
     if (isTestRunning && !hasCompletedTest) {
-      console.log('🛑 SpeedTestModal: Preventing close during active test');
       return;
     }
 
@@ -224,7 +220,6 @@ export default function SpeedTestModal({
                       onComplete={handleComplete}
                       onError={handleError}
                       onTestStart={() => {
-                        console.log('🚀 SpeedTestModal: Test started');
                         setIsTestRunning(true);
                         setShowResults(false);
                         setError(null);

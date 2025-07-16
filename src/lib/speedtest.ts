@@ -93,8 +93,6 @@ async function trySpeedtestWithRetry(
     throw new Error('All speedtest attempts failed');
   }
 
-  console.log(`🔄 Speedtest attempt ${attempt}/${maxAttempts}`);
-
   // Progressive fallback configurations with different strategies
   const configurations = [
     // Attempt 1: Default auto-server selection
@@ -112,7 +110,6 @@ async function trySpeedtestWithRetry(
   const args = configurations[attempt - 1];
   // Add delay between attempts to avoid rate limiting
   if (attempt > 1) {
-    console.log(`⏳ Waiting ${attempt * 2} seconds before retry...`);
     await new Promise(resolve => setTimeout(resolve, attempt * 2000));
   }
 
@@ -120,8 +117,6 @@ async function trySpeedtestWithRetry(
     let output = '';
     let errorOutput = '';
     let progressTimer: NodeJS.Timeout;
-
-    console.log(`🚀 Attempt ${attempt} - Starting speedtest with args:`, args);
 
     // Update progress during retry attempts
     onProgress({
@@ -166,7 +161,7 @@ async function trySpeedtestWithRetry(
 
       // Check for specific protocol errors early
       if (errorStr.includes('Protocol error') || errorStr.includes('Did not receive HELLO')) {
-        console.log(`🚨 Detected protocol error on attempt ${attempt}, will retry...`);
+        // Protocol error detected, will retry
       }
     });
 
@@ -196,14 +191,12 @@ async function trySpeedtestWithRetry(
             rawData: JSON.stringify(jsonData),
           };
 
-          console.log(`✅ Attempt ${attempt} succeeded!`);
           resolve(result);
         } catch (e) {
           console.error(`Attempt ${attempt} parse error:`, e);
           console.error('Raw output:', output.substring(0, 500) + '...');
 
           if (attempt < maxAttempts) {
-            console.log(`🔄 Parse failed, retrying with different configuration...`);
             try {
               const result = await trySpeedtestWithRetry(onProgress, attempt + 1);
               resolve(result);
@@ -226,7 +219,6 @@ async function trySpeedtestWithRetry(
 
         if (attempt < maxAttempts) {
           const reason = isProtocolError ? 'protocol error' : `exit code ${code}`;
-          console.log(`🔄 Retrying due to ${reason}...`);
           try {
             const result = await trySpeedtestWithRetry(onProgress, attempt + 1);
             resolve(result);
@@ -247,7 +239,6 @@ async function trySpeedtestWithRetry(
       console.error(`Attempt ${attempt} process error:`, error);
 
       if (attempt < maxAttempts) {
-        console.log(`🔄 Retrying due to process error...`);
         try {
           const result = await trySpeedtestWithRetry(onProgress, attempt + 1);
           resolve(result);
@@ -341,11 +332,6 @@ export async function runSpeedTest(
       ispValidation = validateISPMatch(selectedISP, result.ispName);
     }
 
-    // Log Ookla shareable URL
-    if (result.resultUrl) {
-      console.log(`🔗 Ookla Result URL: ${result.resultUrl}`);
-    }
-
     return {
       ...result,
       ispValidation, // Include validation results
@@ -399,8 +385,6 @@ export { normalizeISPName, validateISPMatch } from './isp-utils';
 // Quick ISP detection using minimal network check
 export async function detectCurrentISP(): Promise<string> {
   try {
-    console.log('Quick ISP detection starting...');
-
     // Method 1: Try to get ISP info from public IP services
     const ipServices = [
       'https://ipapi.co/json/',
@@ -416,14 +400,11 @@ export async function detectCurrentISP(): Promise<string> {
         const ipData = JSON.parse(ipInfo);
 
         if (ipData.org) {
-          console.log(`🌐 Detected ISP via ${service}: ${ipData.org}`);
           return ipData.org;
         } else if (ipData.isp) {
-          console.log(`🌐 Detected ISP via ${service}: ${ipData.isp}`);
           return ipData.isp;
         }
       } catch (ipError) {
-        console.log(`IP service ${service} failed, trying next...`);
         continue;
       }
     }
@@ -449,21 +430,19 @@ export async function detectCurrentISP(): Promise<string> {
         detectedISP = result.isp;
       }
 
-      console.log(`🌐 Detected ISP via speedtest: ${detectedISP}`);
       return detectedISP;
     } catch (speedtestError) {
-      console.log('Speedtest ISP detection failed, trying fallback method...');
+      // Fall back to next method
     }
 
     // Method 3: Fallback to a simple speedtest with retry
     try {
       const result = await trySpeedtestWithRetry(() => {}, 1);
       if (result.ispName && result.ispName !== 'Unknown ISP') {
-        console.log(`🌐 Detected ISP via fallback speedtest: ${result.ispName}`);
         return result.ispName;
       }
     } catch (fallbackError) {
-      console.log('Fallback speedtest ISP detection also failed');
+      // All methods failed
     }
   } catch (error) {
     console.error('All ISP detection methods failed:', error);
