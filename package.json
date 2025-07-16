@@ -24,6 +24,7 @@
   "dependencies": {
     "@headlessui/react": "^2.2.4",
     "@prisma/client": "^6.9.0",
+    "@tailwindcss/postcss": "^4.1.11",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node-cron": "^3.0.11",
@@ -43,18 +44,19 @@
     "react-dom": "^19.0.0",
     "recharts": "^2.15.3",
     "sqlite3": "^5.1.7",
-    "zod": "^3.25.59",
-    "tailwindcss": "^3.4.17",
-    "autoprefixer": "^10.4.21"
+    "zod": "^3.25.59"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.21",
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
+    "postcss": "^8.4.32",
     "prettier": "^3.5.3",
+    "tailwindcss": "^3.4.17",
     "tsx": "^4.20.0",
     "typescript": "^5"
   }
