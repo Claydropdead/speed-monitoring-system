@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
     }    // Get office with all ISPs using raw query to avoid TypeScript issues
     // Note: PostgreSQL converts column names to lowercase, so we need to use lowercase names
     const office = (await prisma.$queryRaw`
-      SELECT id, isp, isps, sectionisps FROM offices WHERE id = ${targetOfficeId}
+      SELECT id, isp, isps FROM offices WHERE id = ${targetOfficeId}
     `) as any[];
 
     if (!office || office.length === 0) {
@@ -97,11 +97,11 @@ export async function GET(request: NextRequest) {
 
     const officeData = office[0];
     
-    // Normalize column names for PostgreSQL compatibility
-    // PostgreSQL converts column names to lowercase, so we need to map them back
+    // For now, don't use sectionISPs since the column doesn't exist in production
+    // Just use the basic office data structure
     const normalizedOfficeData = {
       ...officeData,
-      sectionISPs: officeData.sectionisps // Map lowercase back to camelCase
+      sectionISPs: null // Column doesn't exist in production DB
     };
     
     // Use the new ISP parsing utility to get properly structured ISPs
