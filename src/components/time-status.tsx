@@ -141,13 +141,13 @@ export default function TimeStatus() {
           </div>
 
           {hasTimeMismatch && (
-            <div className="bg-yellow-100 border border-yellow-200 rounded p-3 text-sm">
+            <div className="bg-green-100 border border-green-200 rounded p-3 text-sm">
               <div className="flex items-start gap-2">
-                <Info className="h-4 w-4 text-yellow-600 flex-shrink-0 mt-0.5" />
-                <div className="text-yellow-800">
-                  <strong>Note:</strong> Your local time differs from the server time. 
-                  Speed tests are only allowed during server time slots. 
-                  The system uses <strong>{timeInfo.timezone}</strong> timezone for scheduling.
+                <Info className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                <div className="text-green-800">
+                  <strong>Good News:</strong> Your local time differs from the server time, but 
+                  speed tests now use <strong>your local time</strong> for validation! 
+                  You can run tests during your local testing hours regardless of server time.
                 </div>
               </div>
             </div>

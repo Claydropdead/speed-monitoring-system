@@ -79,12 +79,18 @@ export default function Tests() {
     try {
       // Get client timezone
       const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      console.log('🌍 Client timezone detected:', clientTimezone);
+      
       const response = await fetch(`/api/speedtest/available-isps?timezone=${encodeURIComponent(clientTimezone)}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('📡 API Response:', data);
+        console.log('⏰ Current Time Slot from API:', data.currentTimeSlot);
         setAvailableISPs(data);
       } else {
-        console.error('Failed to fetch available ISPs');
+        console.error('Failed to fetch available ISPs:', response.status, response.statusText);
+        const errorData = await response.text();
+        console.error('Error response:', errorData);
       }
     } catch (error) {
       console.error('Error fetching available ISPs:', error);
@@ -128,7 +134,7 @@ export default function Tests() {
 
     if (!availableISPs?.currentTimeSlot) {
       alert(
-        'Testing is only allowed during designated time slots:\n- Morning: 6:00 AM - 11:59 AM\n- Noon: 12:00 PM - 12:59 PM\n- Afternoon: 1:00 PM - 6:00 PM'
+        'Testing is not available at this time.\n\nYour Local Time: Currently outside testing hours\nTesting Hours:\n- Morning: 6:00 AM - 11:59 AM\n- Noon: 12:00 PM - 12:59 PM\n- Afternoon: 1:00 PM - 6:00 PM\n\nNote: The system now uses your local timezone for validation.'
       );
       return;
     }
@@ -384,7 +390,7 @@ export default function Tests() {
             ) : (
               <div className="flex items-center gap-2 text-orange-600">
                 <AlertTriangle className="h-4 w-4" />
-                <span>Testing is only allowed during designated time slots</span>
+                <span>Testing is only available during designated time slots (using your local time)</span>
                 <div className="ml-4 text-sm text-gray-600">
                   <div>Morning: 6:00 AM - 11:59 AM</div>
                   <div>Noon: 12:00 PM - 12:59 PM</div>
